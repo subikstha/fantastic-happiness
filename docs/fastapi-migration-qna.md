@@ -314,3 +314,52 @@ Best practice to avoid this issue:
 - Keep app code under `apps/api/app`
 - Run commands from the same project root consistently
 
+## Q14) Review of current `config.py` and what to improve next
+
+**Answer:**
+
+Your current `config.py` structure is strong and follows good FastAPI practice:
+
+- Uses `BaseSettings` and `SettingsConfigDict` correctly
+- Centralized typed settings object
+- Uses `@lru_cache` for singleton-like settings loading
+- Includes useful CORS parsing via `field_validator`
+
+Main correction needed:
+
+- `DATABASE_URL` should be `str`, not `AnyHttpUrl`
+
+Reason:
+
+- SQLAlchemy DSNs like `postgresql+asyncpg://user:pass@host:5432/dbname` are database URLs, not plain HTTP URLs.
+- Typing it as `AnyHttpUrl` can lead to validation mismatch or unnecessary constraints.
+
+Recommended change:
+
+```python
+DATABASE_URL: str
+```
+
+Optional enhancement:
+
+- Expand environment values to include `development`:
+
+```python
+ENVIRONMENT: Literal["local", "development", "staging", "production"] = "local"
+```
+
+## Q15) Immediate next tasks after `config.py`
+
+**Answer:**
+
+After fixing `DATABASE_URL` typing, continue with these tasks in order:
+
+1. Wire `settings` into `main.py` (`title`, API prefix, CORS)
+2. Implement `app/api/v1/router.py` and include `health` endpoint router
+3. Implement `app/api/v1/endpoints/health.py` (`GET /health`)
+4. Implement `app/infrastructure/db/session.py` using async SQLAlchemy engine + session maker
+5. Validate startup and route loading (`uv run ...`)
+6. Then proceed to first real migrated module (`users/accounts` read endpoints)
+
+This sequence keeps migration low-risk while establishing a clean backend foundation.
+
