@@ -19,7 +19,7 @@ from infrastructure.db.base import Base # Base: Shared declarative base. Every m
 class Account(Base):
     __tablename__ = "accounts" # Actual table name in PostgreSQL
     __table_args__ = (
-        UniqueConstraint("provider", "provider_account_id", name="uq_account_provider")
+        UniqueConstraint("provider", "provider_account_id", name="uq_account_provider"),
     )
 
     """ 
