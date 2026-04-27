@@ -1,7 +1,26 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+from api.v1.router import api_router
+from core.config import settings
+
+app = FastAPI(title=settings.APP_NAME)
+
+_cors_origins = [
+    o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()
+]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
 
 @app.get("/")
-def read_root():
+def read_root() -> dict[str, str]:
     return {"message": "Hello, World!"}
