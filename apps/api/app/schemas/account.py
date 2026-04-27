@@ -3,6 +3,12 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+class AccountCreate(BaseModel):
+    user_id: UUID
+    name: str
+    image: str | None = None
+    provider: str
+    provider_account_id: str
 
 class AccountRead(BaseModel):
     id: UUID

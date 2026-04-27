@@ -2,7 +2,16 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
+
+class UserCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255) # Field() adds metadata to the field, like min_length and max_length.
+    username: str = Field(min_length=3, max_length=255)
+    email: EmailStr
+    bio: str | None = None
+    image: str | None = None
+    location: str | None = None
+    portfolio: str | None = None
 
 class UserRead(BaseModel):
     id: UUID
