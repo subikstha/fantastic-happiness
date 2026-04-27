@@ -14,6 +14,21 @@ class AccountService:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def get_credentials_account_by_email(email: str, db: AsyncSession):
+        result = await db.execute(select(Account).where(Account.provider == "credentials", Account.provider_account_id == email))
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_oauth_account(provider: str, provider_account_id: str, db: AsyncSession) -> Account | None:
+        result = await db.execute(
+            select(Account).where(
+                Account.provider == provider,
+                Account.provider_account_id == provider_account_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def create(payload: AccountCreate, db: AsyncSession) -> Account:
         # Check existing account
         existing = await db.execute(

@@ -131,4 +131,6 @@ uv run pytest -q
 2. Run full tests against `devflow_test`.
 3. Then proceed to OAuth sign-in flow migration.
 4. Next domain phases: votes -> questions/answers/tags.
+#Docker command to enter interactive psql mode
+#sudo docker exec -it devflow-postgres psql -U postgres -d devflow
 
