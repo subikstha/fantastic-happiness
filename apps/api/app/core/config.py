@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Resolve apps/api/.env regardless of process cwd (e.g. uvicorn from apps/api/app).
+# Resolve apps/api/.env regardless of process cwd (e.g. uvicorn from apps/api).
 _API_ROOT = Path(__file__).resolve().parent.parent.parent
 _ENV_FILE = _API_ROOT / ".env"
 

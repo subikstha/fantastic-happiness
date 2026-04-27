@@ -35,12 +35,17 @@ docker compose exec postgres pg_isready -U postgres -d devflow
 
 ## Run the API
 
-From **`apps/api/app`**:
+From **`apps/api`**:
 
 ```bash
-cd app
 uv sync
-uv run uvicorn main:app --reload
+uv run uvicorn app.main:app --reload
+```
+
+Or with FastAPI CLI:
+
+```bash
+uv run fastapi dev app/main.py
 ```
 
 ## Verify database connectivity
@@ -55,3 +60,20 @@ curl -s http://127.0.0.1:8000/api/v1/health/ready
 ```
 
 Expect `200` and `{"status":"ok","database":"connected"}` when Postgres is up. If the DB is down, expect `503`.
+
+## Alembic migrations
+
+From `apps/api`:
+
+```bash
+uv run alembic revision --autogenerate -m "message"
+uv run alembic upgrade head
+```
+
+## Run tests
+
+From `apps/api`:
+
+```bash
+uv run python -m pytest -q app/tests
+```

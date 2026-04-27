@@ -38,7 +38,7 @@ docker compose up -d
 **What we did**
 
 - Centralized configuration in **Pydantic Settings**, loaded from **`apps/api/.env`**.
-- Resolved the `.env` path from `config.py` so it works even when you start `uvicorn` from `apps/api/app` (current layout).
+- Resolved the `.env` path from `config.py` so it works even when you start `uvicorn` from `apps/api` (current layout).
 
 **Why**
 
@@ -146,7 +146,7 @@ docker compose up -d
 |--------|--------|
 | **Copy `.env`** | From `.env.example`. |
 | **Docker** | `docker compose up -d` from repo root. |
-| **Run API** | `uv run uvicorn main:app --reload` from `apps/api/app`. |
+| **Run API** | `uv run uvicorn app.main:app --reload` from `apps/api`. |
 | **Verify** | `curl` the readiness endpoint. |
 
 ---
@@ -155,7 +155,7 @@ docker compose up -d
 
 1. **Repo root:** `docker compose up -d` — Postgres healthy.
 2. **Optional:** `docker compose exec postgres pg_isready -U postgres -d devflow`
-3. **`apps/api/app`:** `uv run uvicorn main:app --reload`
+3. **`apps/api`:** `uv run uvicorn app.main:app --reload`
 4. **Browser or curl:** `GET http://127.0.0.1:8000/api/v1/health/ready` → `200` and `{"status":"ok","database":"connected"}` when DB is up; `503` when it is down.
 
 ---

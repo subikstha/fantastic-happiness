@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from pydantic import UUID6
 
 if TYPE_CHECKING:
-    from infrastructure.db.models.user import User
+    from app.infrastructure.db.models.user import User
 
 import uuid # Python's UUID type. You use it for primary keys (uuid.uuid4()) generates a new random UUID.
 from datetime import datetime # Type hint for timestamp columns (created_at, updated_at).
@@ -13,7 +13,7 @@ from datetime import datetime # Type hint for timestamp columns (created_at, upd
 from sqlalchemy import DateTime, Integer, String, func, UniqueConstraint, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from infrastructure.db.base import Base # Base: Shared declarative base. Every model subclasses it so all tables are registered on Base.metadata(used by alembic)
+from app.infrastructure.db.base import Base # Base: Shared declarative base. Every model subclasses it so all tables are registered on Base.metadata(used by alembic)
 
 # Account -> Python class representing one row in the DB
 class Account(Base):

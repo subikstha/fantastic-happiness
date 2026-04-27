@@ -1,8 +1,8 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from infrastructure.db.models.account import Account
-from schemas.account import AccountCreate
+from app.infrastructure.db.models.account import Account
+from app.schemas.account import AccountCreate
 
 class AccountConflictError(Exception):
     pass

@@ -26,8 +26,8 @@
   },
   "typescript.tsdk": "apps/web/node_modules/typescript/lib",
 
-  // Python workspace settings (FastAPI app under apps/api/app)
-  "python.defaultInterpreterPath": "${workspaceFolder}/apps/api/app/.venv/bin/python",
+  // Python workspace settings (FastAPI app under apps/api)
+  "python.defaultInterpreterPath": "${workspaceFolder}/apps/api/.venv/bin/python",
   "python.REPL.enableREPLSmartSend": false,
   "python-envs.defaultEnvManager": "ms-python.python:system",
 

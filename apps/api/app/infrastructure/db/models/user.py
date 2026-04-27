@@ -9,10 +9,10 @@ from sqlalchemy import DateTime, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from infrastructure.db.base import Base
+from app.infrastructure.db.base import Base
 
 if TYPE_CHECKING:
-    from infrastructure.db.models.account import Account
+    from app.infrastructure.db.models.account import Account
 
 
 class User(Base):

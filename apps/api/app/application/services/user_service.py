@@ -1,8 +1,8 @@
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from infrastructure.db.models.user import User
-from schemas.user import UserCreate
+from app.infrastructure.db.models.user import User
+from app.schemas.user import UserCreate
 
 """
 UserConflictError is a custom exception type

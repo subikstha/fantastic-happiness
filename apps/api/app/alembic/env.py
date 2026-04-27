@@ -1,5 +1,5 @@
-from infrastructure.db.base import Base
-import infrastructure.db.models
+from app.infrastructure.db.base import Base
+import app.infrastructure.db.models
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config

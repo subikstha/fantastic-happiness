@@ -299,13 +299,13 @@ Example flow:
 ```bash
 rm -rf .venv
 uv sync
-uv run fastapi dev main.py
+uv run fastapi dev app/main.py
 ```
 
 Or:
 
 ```bash
-uv run uvicorn main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 Best practice to avoid this issue:

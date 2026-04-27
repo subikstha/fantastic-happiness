@@ -9,9 +9,9 @@ status: named HTTP status codes (status.HTTP_404_NOT_FOUND).
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession # Async DB session type for SQLAlchemy.
 
-from application.services.user_service import UserService
-from infrastructure.db.session import get_db # Imports dependency function that yields an AsyncSession. FastAPI injects this per request
-from schemas.user import UserRead # Pydantic response schema for output serialization. Prevents returning raw ORM internals and enforces response shape
+from app.application.services.user_service import UserConflictError, UserService
+from app.infrastructure.db.session import get_db # Imports dependency function that yields an AsyncSession. FastAPI injects this per request
+from app.schemas.user import UserRead, UserCreate # Pydantic response schema for output serialization. Prevents returning raw ORM internals and enforces response shape
 
 
 """
@@ -29,3 +29,13 @@ async def get_user(user_id: UUID, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
+
+@router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+async def create_user(payload: UserCreate, db: AsyncSession = Depends(get_db)):
+    try:
+        return await UserService.create(payload=payload, db=db)
+    except UserConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc)
+        ) from exc
