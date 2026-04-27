@@ -24,5 +24,23 @@
   "[javascriptreact]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.tsdk": "apps/web/node_modules/typescript/lib",
+
+  // Python workspace settings (FastAPI app under apps/api/app)
+  "python.defaultInterpreterPath": "${workspaceFolder}/apps/api/app/.venv/bin/python",
+  "python.REPL.enableREPLSmartSend": false,
+  "python-envs.defaultEnvManager": "ms-python.python:system",
+
+  // Hide generated/build/cache folders for both Next.js and Python
+  "files.exclude": {
+    "**/.next": true,
+    "**/node_modules": true,
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/.venv": true,
+    "**/.env": true
+  }
 }
