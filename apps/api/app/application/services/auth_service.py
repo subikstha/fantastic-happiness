@@ -1,4 +1,3 @@
-import logging
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.services.account_service import AccountService
@@ -6,7 +5,6 @@ from app.application.services.user_service import UserService
 from app.core.security import verify_password, create_access_token
 from app.application.services.refresh_token_service import RefreshTokenService
 
-logger = logging.getLogger(__name__)
 
 class AuthService:
     @staticmethod
@@ -25,7 +23,7 @@ class AuthService:
 
         access_token, expires_in = create_access_token(sub=str(user.id))
         # TODO: issue refresh token from DB-backed refresh-token service
-        refresh_token = RefreshTokenService.create(user_id=user.id, db=db)
+        refresh_token = await RefreshTokenService.create(user_id=user.id, db=db)
 
         return {
             "tokens": {

@@ -765,3 +765,249 @@ Minimum test cases:
 
 If you add `family_id` reuse detection:
 - reuse after revocation revokes entire family (and subsequent tokens fail)
+
+## Auth Hardening Code Samples (Step 1-4)
+
+These samples align with the current codebase and address the active runtime error:
+
+- `ResponseValidationError: refresh_token expected string, got coroutine`
+- `RuntimeWarning: coroutine RefreshTokenService.create was never awaited`
+
+### Step 1: Harden `AuthService` and await refresh token creation
+
+File: `apps/api/app/application/services/auth_service.py`
+
+```python
+from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.application.services.account_service import AccountService
+from app.application.services.refresh_token_service import RefreshTokenService
+from app.application.services.user_service import UserService
+from app.core.security import create_access_token, verify_password
+
+
+class AuthService:
+    @staticmethod
+    async def login(email: str, password: str, db: AsyncSession):
+        email = email.strip().lower()
+
+        account = await AccountService.get_credentials_account_by_email(email=email, db=db)
+        if not account or not account.password:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+        if not verify_password(password, account.password):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+        user = await UserService.get_user_by_id(user_id=account.user_id, db=db)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+        access_token, expires_in = create_access_token(sub=str(user.id))
+        refresh_token = await RefreshTokenService.create(user_id=user.id, db=db)
+
+        return {
+            "tokens": {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "expires_in": expires_in,
+            },
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "name": user.name,
+                "image": user.image,
+                "username": user.username,
+            },
+        }
+
+    @staticmethod
+    async def refresh(refresh_token: str, db: AsyncSession):
+        user_id, new_refresh_token = await RefreshTokenService.rotate(raw_token=refresh_token, db=db)
+        user = await UserService.get_user_by_id(user_id=user_id, db=db)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+        access_token, expires_in = create_access_token(sub=str(user.id))
+        return {
+            "tokens": {
+                "access_token": access_token,
+                "refresh_token": new_refresh_token,
+                "token_type": "bearer",
+                "expires_in": expires_in,
+            },
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "name": user.name,
+                "image": user.image,
+                "username": user.username,
+            },
+        }
+
+    @staticmethod
+    async def logout(refresh_token: str, db: AsyncSession):
+        await RefreshTokenService.revoke(raw_token=refresh_token, db=db)
+        return None
+```
+
+Why:
+- Fixes coroutine-not-awaited bug by adding `await`.
+- Ensures `refresh_token` in response is a string, not coroutine object.
+- Keeps auth failure details generic and safer.
+
+### Step 2: Harden token dependency (`get_current_user`)
+
+File: `apps/api/app/api/deps/auth.py`
+
+```python
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.application.services.user_service import UserService
+from app.core.security import decode_token
+from app.infrastructure.db.session import get_db
+
+bearer = HTTPBearer(auto_error=False)
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: AsyncSession = Depends(get_db),
+):
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    try:
+        payload = decode_token(credentials.credentials)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    if payload.get("type") != "access" or not payload.get("sub"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    user = await UserService.get_user_by_id(payload["sub"], db)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    return user
+```
+
+Why:
+- Converts decode failures into controlled `401` responses.
+- Prevents refresh tokens from being accepted as access tokens.
+
+### Step 3: Clean `RefreshTokenService` imports/time handling
+
+File: `apps/api/app/application/services/refresh_token_service.py`
+
+```python
+import datetime
+import uuid
+
+from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import (
+    generate_refresh_token,
+    get_refresh_token_expiry,
+    hash_refresh_token,
+)
+from app.infrastructure.db.models.refresh_token import RefreshToken
+
+
+class RefreshTokenService:
+    @staticmethod
+    async def create(user_id: uuid.UUID, db: AsyncSession) -> str:
+        raw_token = generate_refresh_token()
+        refresh = RefreshToken(
+            user_id=user_id,
+            token_hash=hash_refresh_token(raw_token),
+            expires_at=get_refresh_token_expiry(),
+        )
+        db.add(refresh)
+        await db.commit()
+        return raw_token
+
+    @staticmethod
+    async def rotate(raw_token: str, db: AsyncSession) -> tuple[uuid.UUID, str]:
+        token_hash = hash_refresh_token(raw_token)
+        result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+        stored = result.scalar_one_or_none()
+        if stored is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        if stored.revoked_at is not None or stored.expires_at <= now:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+        stored.revoked_at = now
+        new_raw = generate_refresh_token()
+        replacement = RefreshToken(
+            user_id=stored.user_id,
+            token_hash=hash_refresh_token(new_raw),
+            expires_at=get_refresh_token_expiry(),
+        )
+        db.add(replacement)
+        await db.commit()
+        return stored.user_id, new_raw
+
+    @staticmethod
+    async def revoke(raw_token: str, db: AsyncSession) -> None:
+        token_hash = hash_refresh_token(raw_token)
+        result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+        stored = result.scalar_one_or_none()
+        if stored is None:
+            return
+
+        stored.revoked_at = datetime.datetime.now(datetime.timezone.utc)
+        await db.commit()
+```
+
+Why:
+- Removes incorrect imports and uses timezone-aware UTC consistently.
+- Keeps refresh failures deterministic and mapped to `401`.
+
+### Step 4: Endpoint contract cleanup
+
+File: `apps/api/app/api/v1/endpoints/auth.py`
+
+```python
+from fastapi import APIRouter, Depends, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps.auth import get_current_user
+from app.application.services.auth_service import AuthService
+from app.infrastructure.db.session import get_db
+from app.schemas.auth import AuthResponse, AuthUser, LoginRequest, RefreshTokenRequest
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post("/login", response_model=AuthResponse)
+async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
+    return await AuthService.login(email=payload.email, password=payload.password, db=db)
+
+
+@router.post("/refresh", response_model=AuthResponse)
+async def refresh(payload: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
+    return await AuthService.refresh(refresh_token=payload.refresh_token, db=db)
+
+
+@router.get("/me", response_model=AuthUser)
+async def me(current_user=Depends(get_current_user)):
+    return current_user
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(payload: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
+    await AuthService.logout(refresh_token=payload.refresh_token, db=db)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+```
+
+Why:
+- Keeps response contracts explicit and consistent for frontend integration.
+- Ensures logout has a clear no-body `204` response.
