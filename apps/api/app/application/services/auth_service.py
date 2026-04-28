@@ -1,19 +1,23 @@
+import logging
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.services.account_service import AccountService
 from app.application.services.user_service import UserService
 from app.core.security import verify_password, create_access_token
 
+logger = logging.getLogger(__name__)
+
 class AuthService:
     @staticmethod
     async def login(email: str, password: str, db: AsyncSession):
         account = await AccountService.get_credentials_account_by_email(email=email, db=db)
-        if not account or not account.password:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials when no account or no account password")
+        if not account:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials for no account")
+        if not account.password:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials for no account password")
 
         if not verify_password(password, account.password):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials for failed password verification")
-
         user = await UserService.get_user_by_id(user_id=account.user_id, db=db)
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials for no user")

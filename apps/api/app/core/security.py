@@ -9,6 +9,8 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 def hash_password(password: str) -> str:
+    if len(password.encode("utf-8")) > 72:
+        raise ValueError("password cannot be longer than 72 bytes for bcrypt")
     return pwd_context.hash(password)
 
 def create_access_token(sub: str) -> tuple[str, int]:

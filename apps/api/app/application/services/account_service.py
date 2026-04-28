@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.db.models.account import Account
 from app.schemas.account import AccountCreate
+from app.core.security import hash_password
 
 class AccountConflictError(Exception):
     pass
@@ -46,6 +47,7 @@ class AccountService:
             image=payload.image,
             provider=payload.provider,
             provider_account_id=payload.provider_account_id,
+            password=hash_password(payload.password) if payload.password else None,
         )
         db.add(account)
         await db.commit()
