@@ -40,10 +40,15 @@ StackOverflow clone using Next.js + FastAPI
 - Users/accounts API endpoints, schemas, and service layer created.
 - Auth scaffolding started:
   - `POST /api/v1/auth/login`
-  - `POST /api/v1/auth/refresh` (service still pending completion)
+  - `POST /api/v1/auth/refresh`
   - `GET /api/v1/auth/me`
+  - `POST /api/v1/auth/logout`
   - auth dependency scaffold in place (`get_current_user`)
 - Credentials account flow updated to hash passwords before persistence.
+- Refresh-token persistence implemented:
+  - `refresh_tokens` model added
+  - Alembic migration added for `refresh_tokens` table
+  - refresh token create/rotate/revoke service added
 - Multiple migration/devlog docs added under `docs/`.
 
 ## Key fixes that were made
@@ -59,6 +64,7 @@ StackOverflow clone using Next.js + FastAPI
   - password required for `provider="credentials"`
   - password byte-length guard for bcrypt (`<= 72` bytes)
 - Fixed hashing compatibility issue by pinning `bcrypt` to `<5` in API dependencies.
+- Added model exports for Alembic metadata discovery (`RefreshToken` import in models package).
 
 ## Major structural change completed
 
@@ -123,6 +129,7 @@ uv run pytest -q
 - Test collection from `apps/api` works.
 - Full execution depends on test DB availability (`devflow_test` / `TEST_DATABASE_URL`).
 - Auth tests are not yet added (`app/tests/test_auth.py` pending).
+- Refresh-token tests are not yet added (rotation/replay/expiry cases pending).
 
 ## Important docs created
 
@@ -137,17 +144,21 @@ uv run pytest -q
 
 ## Recommended immediate next steps
 
-1. Finish Phase 1 auth hardening:
-   - implement `AuthService.refresh(...)`
-   - replace refresh-token placeholder in login response
+1. Finish auth hardening pass:
    - standardize token error handling to return `401` for invalid/expired tokens
+   - normalize auth error detail strings for production-safe responses
+   - remove any sensitive login debug logging
 2. Add auth test coverage in `app/tests/test_auth.py`:
    - login success
    - invalid credentials
    - `/auth/me` unauthorized + authorized flows
+   - refresh success + rotation
+   - refresh replay/expired token handling
 3. Run full tests against `devflow_test`.
-4. Proceed to OAuth sign-in flow migration (`/auth/oauth/{provider}/start|callback`).
-5. Next domain phases: votes -> questions/answers/tags.
+4. Migration hygiene:
+   - resolve/clean the empty migration revision created before `add refresh token`
+5. Proceed to OAuth sign-in flow migration (`/auth/oauth/{provider}/start|callback`).
+6. Next domain phases: votes -> questions/answers/tags.
 #Docker command to enter interactive psql mode
 #sudo docker exec -it devflow-postgres psql -U postgres -d devflow
 

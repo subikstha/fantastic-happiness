@@ -1,4 +1,5 @@
 import datetime
+import uuid
 from hmac import new
 from time import timezone
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,8 +24,9 @@ class RefreshTokenService:
         db.add(refresh_token)
         await db.commit()
         return raw_token
-
-    async def rotate(raw_token: str, db: AsyncSession) -> str:
+        
+    @staticmethod
+    async def rotate(raw_token: str, db: AsyncSession) -> tuple[uuid.UUID, str]:
         token_hash = hash_refresh_token(raw_token)
 
         result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))

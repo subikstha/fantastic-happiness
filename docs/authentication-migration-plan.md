@@ -158,6 +158,11 @@ Auth migration is considered complete when:
 - Current-user dependency scaffold exists and `/api/v1/auth/me` route is present.
 - Credentials account lookup helper is implemented in account service.
 - Password hashing is applied for credentials account creation.
+- `POST /api/v1/auth/refresh` and `POST /api/v1/auth/logout` routes are wired.
+- `AuthService.refresh(...)` and `AuthService.logout(...)` are implemented.
+- Refresh token service scaffold is implemented (create/rotate/revoke).
+- Refresh token DB model is implemented and exported for Alembic discovery.
+- Migration added to create `refresh_tokens` table (`5a7e1576c016_add_refresh_token.py`).
 - Credentials input validation includes:
   - password required for `provider="credentials"`
   - bcrypt byte-length guard (`<= 72` bytes)
@@ -165,11 +170,12 @@ Auth migration is considered complete when:
 
 ### Still Pending To Finish Phase 1
 
-- Implement `AuthService.refresh(...)` and complete `/api/v1/auth/refresh`.
-- Replace placeholder refresh token value in login response.
 - Add robust invalid-token handling path in `get_current_user` (map decode failures to `401`).
 - Add `app/tests/test_auth.py` coverage for login + `/auth/me` scenarios.
+- Add refresh token tests (rotate success, replay/reuse rejection, expiry rejection).
 - Remove sensitive login debug logging and return production-safe auth error details.
+- Normalize `refresh_token_service.py` imports/types and timezone usage for correctness/readability.
+- Clean migration chain hygiene (remove/squash the empty `e33c2d015199_add_refresh_tokens.py` revision if not needed).
 
 ## Implementation Guide (Code Samples)
 
