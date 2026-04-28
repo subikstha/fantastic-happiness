@@ -502,3 +502,260 @@ After credentials flow is done, add:
 3. Refresh token persistence + rotation.
 4. OAuth start/callback with account linking.
 5. Authorization policy helpers before protected write routes.
+
+## Refresh Token Implementation (DB-backed + Rotation)
+
+This section adds an implementation-oriented blueprint for `POST /api/v1/auth/refresh`.
+
+### 1) DB model: `refresh_tokens` table
+
+Suggested file: `apps/api/app/infrastructure/db/models/refresh_token.py`
+
+```python
+import uuid
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, func
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.infrastructure.db.base import Base
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+
+    # Token ownership
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
+    # Token family to support reuse detection (rotate = extend the family, revoke = revoke family)
+    family_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        index=True,
+        nullable=False,
+    )
+
+    # Unique per refresh token (also stored in JWT as `jti`)
+    jti: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+
+    # Hash refresh token at rest (do NOT store raw refresh token)
+    # Use SHA-256 (or similar) so lookups are fast and comparison is deterministic.
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    # Rotation / invalidation state
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    replaced_by_jti: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    __table_args__ = (
+        Index("ix_refresh_tokens_user_family", "user_id", "family_id"),
+    )
+```
+
+### 2) Security helpers: create + decode refresh tokens
+
+Extend `apps/api/app/core/security.py` with:
+
+```python
+import uuid
+from datetime import datetime, timedelta, timezone
+
+from jose import jwt, JWTError
+
+from app.core.config import settings
+
+
+def create_refresh_token(*, sub: str, family_id: str, jti: str) -> tuple[str, int]:
+    expires_delta = timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+    expires_at = datetime.now(timezone.utc) + expires_delta
+    payload = {
+        "sub": sub,
+        "type": "refresh",
+        "family_id": family_id,
+        "jti": jti,
+        "exp": expires_at,
+    }
+    token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    return token, int(expires_delta.total_seconds())
+
+
+def decode_token(token: str) -> dict:
+    # reuse your existing decode_token; it already returns JWT claims
+    ...
+```
+
+You’ll also need config values:
+- `REFRESH_TOKEN_EXPIRE_MINUTES`
+
+### 3) Hashing refresh tokens at rest
+
+Suggested helper (for deterministic DB lookup):
+
+```python
+import hashlib
+
+def sha256_hex(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+```
+
+Use `sha256_hex(raw_refresh_token)` to populate `RefreshToken.token_hash`.
+
+### 4) Service logic: issue + rotate refresh tokens
+
+Suggested files:
+- `apps/api/app/application/services/refresh_token_service.py`
+- add methods to `AuthService`
+
+Core rotation algorithm (high level):
+1. Decode refresh JWT (`type=refresh`, extract `sub`, `family_id`, `jti`)
+2. Hash the *received* refresh token and find the DB row by `token_hash`
+3. If expired or revoked: treat as reuse attempt
+4. If valid:
+   - revoke current token row
+   - create a new refresh token row in the same family
+   - issue new access token
+
+Pseudo-implementation:
+
+```python
+from datetime import datetime, timedelta, timezone
+import uuid
+
+from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
+
+from app.core.security import create_access_token, create_refresh_token, decode_token
+from app.infrastructure.db.models.refresh_token import RefreshToken
+
+from app.application.services.user_service import UserService
+
+
+def sha256_hex(s: str) -> str:
+    import hashlib
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+
+class RefreshTokenService:
+    @staticmethod
+    async def rotate(*, refresh_token: str, db: AsyncSession) -> dict:
+        # 1) Validate JWT + claims
+        try:
+            claims = decode_token(refresh_token)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+
+        if claims.get("type") != "refresh" or not claims.get("sub"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+
+        user_id = claims["sub"]
+        family_id = claims["family_id"]
+        jti = claims["jti"]
+
+        # 2) Lookup by hashed token
+        token_hash = sha256_hex(refresh_token)
+        row = await db.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+
+        if row is None:
+            # token not recognized => invalid
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+
+        now = datetime.now(timezone.utc)
+        if row.revoked_at is not None or row.expires_at <= now:
+            # Reuse detection: revoke the entire family
+            await db.execute(
+                update(RefreshToken)
+                .where(RefreshToken.family_id == family_id)
+                .values(revoked_at=now)
+            )
+            await db.commit()
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token reuse detected")
+
+        # 3) Rotate: revoke current token, insert replacement
+        new_jti = uuid.uuid4().hex
+        raw_new_refresh, new_expires_in = create_refresh_token(
+            sub=str(user_id),
+            family_id=str(family_id),
+            jti=new_jti,
+        )
+        new_hash = sha256_hex(raw_new_refresh)
+        new_expires_at = now + timedelta(seconds=new_expires_in)
+
+        row.revoked_at = now
+        row.replaced_by_jti = new_jti
+
+        new_row = RefreshToken(
+            user_id=row.user_id,
+            family_id=row.family_id,
+            jti=new_jti,
+            token_hash=new_hash,
+            expires_at=new_expires_at,
+        )
+
+        db.add(new_row)
+        await db.commit()
+
+        # 4) Issue new access token + user profile
+        access_token, expires_in = create_access_token(sub=str(row.user_id))
+        user = await UserService.get_user_by_id(user_id=row.user_id, db=db)
+
+        return {
+            "tokens": {
+                "access_token": access_token,
+                "refresh_token": raw_new_refresh,
+                "token_type": "bearer",
+                "expires_in": expires_in,
+            },
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "name": user.name,
+                "image": user.image,
+                "username": user.username,
+            },
+        }
+```
+
+### 5) Endpoint wiring: `POST /auth/refresh`
+
+Suggested endpoint behavior (`apps/api/app/api/v1/endpoints/auth.py`):
+
+```python
+@router.post("/refresh", response_model=AuthResponse)
+async def refresh(payload: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
+    return await AuthService.refresh(refresh_token=payload.refresh_token, db=db)
+```
+
+And in `AuthService`:
+
+```python
+class AuthService:
+    @staticmethod
+    async def refresh(refresh_token: str, db: AsyncSession) -> dict:
+        return await RefreshTokenService.rotate(refresh_token=refresh_token, db=db)
+```
+
+### 6) Tests to add (Phase 1.5)
+
+Minimum test cases:
+- refresh succeeds for valid token -> returns new `access_token` + new `refresh_token`
+- old refresh token is rejected after rotation (replay detection)
+- expired refresh token rejected
+
+If you add `family_id` reuse detection:
+- reuse after revocation revokes entire family (and subsequent tokens fail)
