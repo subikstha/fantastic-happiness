@@ -149,6 +149,28 @@ Auth migration is considered complete when:
 3. Add OAuth provider callback flow and account-linking logic.
 4. Add policy helper primitives before starting protected domain mutations.
 
+## Progress Snapshot (Current)
+
+### Completed
+
+- Auth router is wired into API v1 routing.
+- Credentials login endpoint is implemented (`POST /api/v1/auth/login`).
+- Current-user dependency scaffold exists and `/api/v1/auth/me` route is present.
+- Credentials account lookup helper is implemented in account service.
+- Password hashing is applied for credentials account creation.
+- Credentials input validation includes:
+  - password required for `provider="credentials"`
+  - bcrypt byte-length guard (`<= 72` bytes)
+- Dependency compatibility fix applied: `bcrypt` pinned below `5`.
+
+### Still Pending To Finish Phase 1
+
+- Implement `AuthService.refresh(...)` and complete `/api/v1/auth/refresh`.
+- Replace placeholder refresh token value in login response.
+- Add robust invalid-token handling path in `get_current_user` (map decode failures to `401`).
+- Add `app/tests/test_auth.py` coverage for login + `/auth/me` scenarios.
+- Remove sensitive login debug logging and return production-safe auth error details.
+
 ## Implementation Guide (Code Samples)
 
 The snippets below are intentionally minimal and aligned with the current codebase layout.

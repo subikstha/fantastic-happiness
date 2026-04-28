@@ -38,6 +38,12 @@ StackOverflow clone using Next.js + FastAPI
 - Docker PostgreSQL setup added via `docker-compose.yml`.
 - SQLAlchemy models and Alembic flow established for initial entities (`users`, `accounts`).
 - Users/accounts API endpoints, schemas, and service layer created.
+- Auth scaffolding started:
+  - `POST /api/v1/auth/login`
+  - `POST /api/v1/auth/refresh` (service still pending completion)
+  - `GET /api/v1/auth/me`
+  - auth dependency scaffold in place (`get_current_user`)
+- Credentials account flow updated to hash passwords before persistence.
 - Multiple migration/devlog docs added under `docs/`.
 
 ## Key fixes that were made
@@ -48,6 +54,11 @@ StackOverflow clone using Next.js + FastAPI
 - Route prefix duplication issue explained and corrected pattern adopted.
 - `account_service` duplicate check fixed to match DB unique constraint pair:
   - `provider + provider_account_id` (not independent OR checks).
+- Added explicit account lookup methods for credentials and OAuth account identities.
+- Added credentials-account validation:
+  - password required for `provider="credentials"`
+  - password byte-length guard for bcrypt (`<= 72` bytes)
+- Fixed hashing compatibility issue by pinning `bcrypt` to `<5` in API dependencies.
 
 ## Major structural change completed
 
@@ -111,6 +122,7 @@ uv run pytest -q
   - `app/tests/test_accounts.py`
 - Test collection from `apps/api` works.
 - Full execution depends on test DB availability (`devflow_test` / `TEST_DATABASE_URL`).
+- Auth tests are not yet added (`app/tests/test_auth.py` pending).
 
 ## Important docs created
 
@@ -125,12 +137,17 @@ uv run pytest -q
 
 ## Recommended immediate next steps
 
-1. Finish users/accounts slice hardening:
-   - ensure accounts endpoint fully follows service pattern
-   - validate `409` conflict mapping for both users/accounts
-2. Run full tests against `devflow_test`.
-3. Then proceed to OAuth sign-in flow migration.
-4. Next domain phases: votes -> questions/answers/tags.
+1. Finish Phase 1 auth hardening:
+   - implement `AuthService.refresh(...)`
+   - replace refresh-token placeholder in login response
+   - standardize token error handling to return `401` for invalid/expired tokens
+2. Add auth test coverage in `app/tests/test_auth.py`:
+   - login success
+   - invalid credentials
+   - `/auth/me` unauthorized + authorized flows
+3. Run full tests against `devflow_test`.
+4. Proceed to OAuth sign-in flow migration (`/auth/oauth/{provider}/start|callback`).
+5. Next domain phases: votes -> questions/answers/tags.
 #Docker command to enter interactive psql mode
 #sudo docker exec -it devflow-postgres psql -U postgres -d devflow
 
