@@ -1,4 +1,6 @@
-```
+## OAuth start flow breakdown (`/oauth/{provider}/start`)
+
+```python
 @router.get("/oauth/{provider}/start")
 async def oauth_start(provider: str, request: Request):
     if provider not in {"google", "github"}:
@@ -8,28 +10,27 @@ async def oauth_start(provider: str, request: Request):
     return await client.authorize_redirect(request, redirect_uri)
 ```
 
-# Receives provider in URL
+### 1) Receives provider in URL
 
-Examples calls
-    /api/v1/auth/oauth/google/start
-    /api/v1/auth/oauth/github/start
+- `/api/v1/auth/oauth/google/start`
+- `/api/v1/auth/oauth/github/start`
 
-# Validates provider
+### 2) Validates provider
 
-If provider is not google or github, it returns 400 Invalid provider.
+- If provider is not `google` or `github`, endpoint returns `400 Invalid provider`.
 
-# Gets OAuth client
+### 3) Gets OAuth client
 
-oauth.create_client(provider) loads the matching Authlib config from core/oauth.py.
+- `oauth.create_client(provider)` loads provider config from `app/core/oauth.py`.
 
-# Builds callback URL
+### 4) Builds callback URL
 
-request.url_for("oauth_callback", provider=provider) generates your API callback endpoint URL (where provider will redirect back after user consents).14s
+- `request.url_for("oauth_callback", provider=provider)` generates callback URL that provider redirects to after consent.
 
-# Redirects user to provider consent page
+### 5) Redirects browser to provider consent page
 
-client.authorize_redirect(request, redirect_uri) returns an HTTP redirect response to Google/GitHub authorize URL.
-Browser is sent to provider login/consent page.
+- `client.authorize_redirect(request, redirect_uri)` returns HTTP redirect to Google/GitHub authorization page.
+- Browser leaves your app and lands on provider login/consent screen.
 
 ---
 
