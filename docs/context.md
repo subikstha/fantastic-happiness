@@ -126,10 +126,16 @@ uv run pytest -q
   - `app/tests/conftest.py`
   - `app/tests/test_users.py`
   - `app/tests/test_accounts.py`
+- `app/tests/test_auth.py`
 - Test collection from `apps/api` works.
 - Full execution depends on test DB availability (`devflow_test` / `TEST_DATABASE_URL`).
-- Auth tests are not yet added (`app/tests/test_auth.py` pending).
-- Refresh-token tests are not yet added (rotation/replay/expiry cases pending).
+- Auth tests added and passing:
+  - login success
+  - invalid credentials
+  - `/auth/me` unauthorized + authorized flows
+  - refresh success + rotation
+  - refresh replay + expired token handling
+- Latest full suite run: `12 passed`.
 
 ## Important docs created
 
@@ -144,21 +150,14 @@ uv run pytest -q
 
 ## Recommended immediate next steps
 
-1. Finish auth hardening pass:
-   - standardize token error handling to return `401` for invalid/expired tokens
-   - normalize auth error detail strings for production-safe responses
-   - remove any sensitive login debug logging
-2. Add auth test coverage in `app/tests/test_auth.py`:
-   - login success
-   - invalid credentials
-   - `/auth/me` unauthorized + authorized flows
-   - refresh success + rotation
-   - refresh replay/expired token handling
-3. Run full tests against `devflow_test`.
-4. Migration hygiene:
-   - resolve/clean the empty migration revision created before `add refresh token`
-5. Proceed to OAuth sign-in flow migration (`/auth/oauth/{provider}/start|callback`).
-6. Next domain phases: votes -> questions/answers/tags.
+1. Proceed to OAuth sign-in flow migration (`/auth/oauth/{provider}/start|callback`):
+   - provider start endpoint
+   - callback endpoint and account-linking logic
+   - OAuth test coverage for first sign-in and repeat sign-in
+2. Decide refresh-token revoke policy contract:
+   - strict `401` for unknown token, or idempotent logout `204`
+   - keep service and endpoint behavior aligned to that choice
+3. Next domain phases: votes -> questions/answers/tags.
 #Docker command to enter interactive psql mode
 #sudo docker exec -it devflow-postgres psql -U postgres -d devflow
 

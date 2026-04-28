@@ -9,20 +9,18 @@ from app.application.services.refresh_token_service import RefreshTokenService
 class AuthService:
     @staticmethod
     async def login(email: str, password: str, db: AsyncSession):
+        email = email.strip().lower()
         account = await AccountService.get_credentials_account_by_email(email=email, db=db)
-        if not account:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials for no account")
-        if not account.password:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials for no account password")
+        if not account or not account.password:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
         if not verify_password(password, account.password):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials for failed password verification")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
         user = await UserService.get_user_by_id(user_id=account.user_id, db=db)
         if not user:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials for no user")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
         access_token, expires_in = create_access_token(sub=str(user.id))
-        # TODO: issue refresh token from DB-backed refresh-token service
         refresh_token = await RefreshTokenService.create(user_id=user.id, db=db)
 
         return {
@@ -48,7 +46,7 @@ class AuthService:
         user = await UserService.get_user_by_id(user_id=user_id, db=db)
 
         if not user:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
         
         access_token, expires_in = create_access_token(sub=str(user.id))
 

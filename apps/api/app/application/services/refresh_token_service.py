@@ -1,7 +1,5 @@
-import datetime
 import uuid
-from hmac import new
-from time import timezone
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import generate_refresh_token, hash_refresh_token, get_refresh_token_expiry
 from app.infrastructure.db.models.refresh_token import RefreshToken
@@ -11,7 +9,7 @@ from sqlalchemy import select
 
 class RefreshTokenService:
     @staticmethod
-    async def create(user_id, db: AsyncSession) -> str:
+    async def create(user_id: uuid.UUID, db: AsyncSession) -> str:
         raw_token = generate_refresh_token()
         hashed_token = hash_refresh_token(raw_token)
 
@@ -24,7 +22,7 @@ class RefreshTokenService:
         db.add(refresh_token)
         await db.commit()
         return raw_token
-        
+
     @staticmethod
     async def rotate(raw_token: str, db: AsyncSession) -> tuple[uuid.UUID, str]:
         token_hash = hash_refresh_token(raw_token)
@@ -32,22 +30,22 @@ class RefreshTokenService:
         result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
         stored = result.scalar_one_or_none()
 
-        if not stored:
+        if stored is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token"
+                detail="Invalid token"
             )
 
         if stored.revoked_at is not None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Refresh token revoked"
+                detail="Invalid token"
             )
 
-        if stored.expires_at < datetime.now(timezone.utc):
+        if stored.expires_at <= datetime.now(timezone.utc):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Refresh token expired"
+                detail="Invalid token"
             )
 
         stored.revoked_at = datetime.now(timezone.utc)
@@ -65,17 +63,15 @@ class RefreshTokenService:
         await db.commit()
         return stored.user_id, new_raw_token
 
+    @staticmethod
     async def revoke(raw_token: str, db: AsyncSession) -> None:
         token_hash = hash_refresh_token(raw_token)
 
         result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
         stored = result.scalar_one_or_none()
 
-        if not stored:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token"
-            )
+        if stored is None:
+            return None
 
         stored.revoked_at = datetime.now(timezone.utc)
         await db.commit()

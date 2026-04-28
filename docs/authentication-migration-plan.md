@@ -156,6 +156,7 @@ Auth migration is considered complete when:
 - Auth router is wired into API v1 routing.
 - Credentials login endpoint is implemented (`POST /api/v1/auth/login`).
 - Current-user dependency scaffold exists and `/api/v1/auth/me` route is present.
+- `get_current_user` now catches decode failures and maps them to `401`.
 - Credentials account lookup helper is implemented in account service.
 - Password hashing is applied for credentials account creation.
 - `POST /api/v1/auth/refresh` and `POST /api/v1/auth/logout` routes are wired.
@@ -163,19 +164,32 @@ Auth migration is considered complete when:
 - Refresh token service scaffold is implemented (create/rotate/revoke).
 - Refresh token DB model is implemented and exported for Alembic discovery.
 - Migration added to create `refresh_tokens` table (`5a7e1576c016_add_refresh_token.py`).
+- Migration hygiene completed: empty refresh-token migration removed and revision chain rewired.
 - Credentials input validation includes:
   - password required for `provider="credentials"`
   - bcrypt byte-length guard (`<= 72` bytes)
 - Dependency compatibility fix applied: `bcrypt` pinned below `5`.
+- `/auth/me` response contract is now explicit (`response_model=AuthUser`).
 
 ### Still Pending To Finish Phase 1
 
-- Add robust invalid-token handling path in `get_current_user` (map decode failures to `401`).
-- Add `app/tests/test_auth.py` coverage for login + `/auth/me` scenarios.
-- Add refresh token tests (rotate success, replay/reuse rejection, expiry rejection).
-- Remove sensitive login debug logging and return production-safe auth error details.
-- Normalize `refresh_token_service.py` imports/types and timezone usage for correctness/readability.
-- Clean migration chain hygiene (remove/squash the empty `e33c2d015199_add_refresh_tokens.py` revision if not needed).
+- Decide revoke behavior for unknown refresh token (idempotent `204` vs strict `401`) and keep it consistent.
+
+### Phase 1 Completion Update
+
+- Auth hardening pass completed for current implementation:
+  - auth errors normalized to `Invalid credentials` / `Invalid token` paths
+  - `get_current_user` decode failures mapped to `401`
+  - `refresh_token_service.py` import/time handling cleanup applied
+- Auth test coverage added in `app/tests/test_auth.py`:
+  - login success
+  - invalid credentials
+  - `/auth/me` unauthorized + authorized flows
+  - refresh success + rotation
+  - refresh replay + expiry handling
+- Verification:
+  - `uv run pytest -q app/tests/test_auth.py` -> `6 passed`
+  - `uv run pytest -q` -> `12 passed`
 
 ## Implementation Guide (Code Samples)
 
