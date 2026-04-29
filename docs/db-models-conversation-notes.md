@@ -72,6 +72,24 @@ The SQLAlchemy `User` model mirrors `apps/web/database/user.model.ts`:
 - bidirectional ORM navigation
 - delete-orphan behavior keeps related rows tidy when managed through ORM
 
+#### What `back_populates` is doing
+
+`back_populates="user"` creates a **bidirectional** relationship between:
+
+- `User.accounts` (this side)
+- `Account.user` (the other side)
+
+Once both sides are wired with matching `back_populates`, SQLAlchemy can keep the in-memory object graph consistent. For example, if you assign `account.user = user`, SQLAlchemy knows that `user.accounts` should include that account as well (and vice versa).
+
+#### What `cascade="all, delete-orphan"` is doing
+
+`cascade="all, delete-orphan"` controls what happens to related `Account` rows when you work with a `User` object through the ORM:
+
+- `all`: when the ORM persists or deletes a `User`, it also applies the same “unit of work” operations to its related `accounts`.
+- `delete-orphan`: if an `Account` is removed from the `User.accounts` collection (so it becomes an “orphan” with no parent user reference in the relationship), SQLAlchemy will issue a **DELETE** for that `Account` row.
+
+This is different from the pure foreign-key behavior: even though your `Account.user_id` also has DB-level `ondelete="CASCADE"`, `delete-orphan` is an ORM-level safeguard that keeps the database tidy when relationships are modified in Python code.
+
 ---
 
 ## 4) `Account` model design decisions
