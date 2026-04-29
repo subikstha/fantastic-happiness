@@ -70,3 +70,10 @@ class AuthService:
     async def logout(refresh_token: str, db: AsyncSession):
         await RefreshTokenService.revoke(raw_token=refresh_token, db=db)
         return None
+
+    @staticmethod
+    async def sign_up_with_credentials(email: str, password: str, full_name: str, username: str, db: AsyncSession):
+        # Need to check if the email is already in use
+        existing_account = await AccountService.get_account_by_provider(provider="credentials", provider_account_id=email, db=db)
+        if existing_account:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use")

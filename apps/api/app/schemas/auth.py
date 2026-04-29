@@ -5,6 +5,12 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    username: str
+
 class TokenPair(BaseModel):
     access_token: str
     refresh_token: str

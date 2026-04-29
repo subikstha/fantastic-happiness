@@ -21,7 +21,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const validatedFields = SignInSchema.safeParse(credentials);
         if (validatedFields.success) {
           const { email, password } = validatedFields.data;
-
+          // TODO: Call the fastapi endpoint to sign in with credentials
+          // const signInResponse = await fetch('http://localhost:8000/')
           const { data: existingAccount } = (await api.accounts.getByProvider(
             email
           )) as ActionResponse<IAccountDoc>;
