@@ -26,29 +26,35 @@ const LocalSearch = ({
   const router = useRouter();
   const searchParams = useSearchParams();
   const query = searchParams.get('query') || '';
-  console.log('this is the query in local search bar component', query);
 
   const [searchQuery, setSearchQuery] = useState(query);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
+      const currentUrl = searchParams.toString()
+        ? `${pathname}?${searchParams.toString()}`
+        : pathname;
+
       if (searchQuery) {
-        const newUrl = formUrlQuery({
+        const targetUrl = formUrlQuery({
           params: searchParams.toString(),
           key: 'query',
           value: searchQuery,
         });
 
-        router.push(newUrl, { scroll: false });
+        if (targetUrl !== currentUrl) {
+          router.replace(targetUrl, { scroll: false });
+        }
       } else {
-        console.log('pathname and route in the else block is', pathname, route);
-        if (pathname === route) {
-          const newUrl = removeKeysFromUrlQuery({
+        if (pathname === route && searchParams.has('query')) {
+          const targetUrl = removeKeysFromUrlQuery({
             params: searchParams.toString(),
             keysToRemove: ['query'],
           });
 
-          router.push(newUrl, { scroll: false });
+          if (targetUrl !== currentUrl) {
+            router.replace(targetUrl, { scroll: false });
+          }
         }
       }
     }, 350);

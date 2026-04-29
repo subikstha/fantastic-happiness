@@ -10,6 +10,7 @@ const DNS_API_URL = process.env.IP_DNS_API_URL;
 const LOCATION_API_URL = process.env.IP_LOCATION_API_URL;
 const JOBS_API_URL = process.env.JOB_SEARCH_API_URL;
 const COUNTRIES_API_URL = process.env.COUNTRIES_API_URL;
+const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL;
 
 export const api = {
   auth: {
@@ -21,6 +22,15 @@ export const api = {
       fetchHandler(`${API_BASE_URL}/auth/${ROUTES.SIGN_IN_WITH_OAUTH}`, {
         method: 'POST',
         body: JSON.stringify({ user, provider, providerAccountId }),
+      }),
+    register: (email: string, password: string, name: string, username: string): Promise<FastApiAuthResponse> =>
+      fetchHandler(`${FASTAPI_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers:{
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+      body: JSON.stringify({ email, password, name, username }),
       }),
   },
   users: {

@@ -10,10 +10,11 @@ import action from '../handlers/action';
 import handleError from '../handlers/error';
 import { NotFoundError } from '../http-errors';
 import { SignInSchema, SignUpSchema } from '../validations';
+import { api } from '../api';
 
 export async function signUpWithCredentials(
   params: AuthCredentials
-): Promise<ActionResponse> {
+): Promise<ActionResponse<FastApiAuthResponse>> {
   const validationResult = await action({ params, schema: SignUpSchema });
 
   if (validationResult instanceof Error) {
@@ -23,47 +24,15 @@ export async function signUpWithCredentials(
   const { name, username, email, password } = validationResult.params!;
   console.log('parameters are', name, username, email, password);
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
-    const existingUser = await User.findOne({ email }).session(session);
-
-    if (existingUser) throw new Error('User already exists');
-
-    const existingUsername = await User.findOne({ username }).session(session);
-
-    if (existingUsername) throw new Error('Username already exists');
-
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Here we destructure to get the first user since we get back an array of all the users and we just want the first one
-    const [newUser] = await User.create([{ username, name, email }], {
-      session,
-    });
-    console.log('created user', newUser);
-
-    await Account.create(
-      [
-        {
-          userId: newUser._id,
-          name,
-          provider: 'credentials',
-          providerAccountId: email,
-          password: hashedPassword,
-        },
-      ],
-      { session }
-    );
-    await session.commitTransaction();
-    await signIn('credentials', { email, password, redirect: false });
-
-    return { success: true };
+    const registerResponse = await api.auth.register(email, password, name, username);
+    if (!registerResponse) {
+      return registerResponse as ErrorResponse;
+    }
+    return { success: true, data: registerResponse, status: 201 };
   } catch (error) {
-    await session.abortTransaction();
     return handleError(error) as ErrorResponse;
-  } finally {
-    await session.endSession();
   }
 }
 

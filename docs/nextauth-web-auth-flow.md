@@ -35,6 +35,25 @@ For **credentials**, `signIn` returns `true` immediately because account linking
 
 You can keep NextAuth for session UX and replace only the credentials path so it delegates to FastAPI.
 
+### Response contract decision (FastAPI vs Next.js shape)
+
+During migration, keep response responsibilities separated:
+
+- **FastAPI API responses** should stay domain-oriented and HTTP-native (for auth: `AuthResponse` = `tokens + user`, plus proper HTTP status codes and error `detail`).
+- **Next.js Server Actions responses** should stay UI-oriented (`ActionResponse<T>` with `success`, `data`, `error`, `status`).
+
+This means Server Actions are the adapter layer:
+
+1. Call FastAPI.
+2. On success (`2xx`), map FastAPI JSON to `ActionResponse<T>` success shape.
+3. On failure (`4xx/5xx`), map backend error payload (for example `detail`) into `ActionResponse<T>` error shape.
+
+Why this decision:
+
+- avoids coupling FastAPI contracts to one frontend's internal response wrapper
+- keeps FastAPI reusable for other clients (CLI/mobile/other web apps)
+- gives the Next.js UI a single predictable `ActionResponse` contract across actions
+
 ### Conceptual change
 
 Stop doing “fetch account + bcrypt in Next” and instead **POST to FastAPI** (for example `POST /api/v1/auth/login` with `{ email, password }`), then use the JSON response (`tokens` + `user`) to drive NextAuth.

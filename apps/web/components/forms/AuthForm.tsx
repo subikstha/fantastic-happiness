@@ -51,6 +51,7 @@ const AuthForm = <T extends FieldValues>({
     console.log('data', data);
     // TODO Authenticate User
     const result = (await onSubmit(data)) as ActionResponse;
+    console.log('Result after successfull registration', result);
 
     if (result?.success) {
       toast({
