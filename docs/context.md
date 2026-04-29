@@ -19,8 +19,9 @@ StackOverflow clone using Next.js + FastAPI
 - Alembic configured
 
 ## Next Tasks
-- Auth endpoints
-- Question model
+- Next.js → FastAPI credentials login (frontend calls `/auth/login`, session/JWT wiring)
+- Domain: questions / answers / tags (after auth integration)
+- OAuth (Google/GitHub): **deferred** — see Recommended next steps below
 
 ## Notes
 - Using UUID for IDs
@@ -147,17 +148,21 @@ uv run pytest -q
 - `docs/pyproject-root-move-devlog.md`
 - `docs/step-indicator/users-accounts-progress.md`
 - `docs/authentication-migration-plan.md`
+- `docs/nextauth-web-auth-flow.md` (NextAuth ↔ FastAPI credentials)
+- `docs/oauth/oauth-route.md`, `docs/oauth/session-middleware-requirement.md` (for when OAuth work resumes)
 
 ## Recommended immediate next steps
 
-1. Proceed to OAuth sign-in flow migration (`/auth/oauth/{provider}/start|callback`):
-   - provider start endpoint
-   - callback endpoint and account-linking logic
-   - OAuth test coverage for first sign-in and repeat sign-in
+1. **Prioritize: Next.js uses FastAPI credentials login** (OAuth sign-in **postponed** for now).
+   - Implement the flow described in `docs/nextauth-web-auth-flow.md`: replace or augment the Credentials provider so `authorize` calls **`POST /api/v1/auth/login`** on the FastAPI base URL (server-side; use a dedicated env var e.g. `FASTAPI_URL` or server-only secret URL).
+   - Propagate **access** (and optionally **refresh**) tokens through NextAuth **`jwt` / `session`** callbacks so the app can send **`Authorization: Bearer`** to FastAPI for protected routes.
+   - Keep **Next.js API routes** only where still needed; new protected reads/writes should target FastAPI as the backend of record.
+   - OAuth routes (`/auth/oauth/{provider}/start|callback`) and Authlib setup can stay in the API but **do not need to be finished or exposed in the product** until provider credentials and redirects are ready.
 2. Decide refresh-token revoke policy contract:
    - strict `401` for unknown token, or idempotent logout `204`
    - keep service and endpoint behavior aligned to that choice
-3. Next domain phases: votes -> questions/answers/tags.
+3. **Deferred:** OAuth sign-in migration (Google/GitHub): resume after credentials-from-FastAPI is stable — provider console setup, redirect URIs, `SessionMiddleware` + session cookie behavior (see `docs/oauth/oauth-route.md`, `docs/oauth/session-middleware-requirement.md`).
+4. Next domain phases: votes → questions / answers / tags.
 #Docker command to enter interactive psql mode
 #sudo docker exec -it devflow-postgres psql -U postgres -d devflow
 

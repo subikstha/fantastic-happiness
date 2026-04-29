@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     # Comma-separated origins (dotenv + list fields JSON-decode poorly in pydantic-settings).
     CORS_ORIGINS: str = ""
+    SESSION_SECRET: str = ""
 
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
