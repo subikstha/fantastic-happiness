@@ -1,9 +1,11 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.application.services.account_service import AccountService
-from app.application.services.user_service import UserService
+from app.application.services.account_service import AccountConflictError, AccountService
+from app.application.services.user_service import UserConflictError, UserService
 from app.core.security import verify_password, create_access_token
 from app.application.services.refresh_token_service import RefreshTokenService
+from app.schemas.account import AccountCreate
+from app.schemas.user import UserCreate
 
 
 class AuthService:
@@ -72,8 +74,52 @@ class AuthService:
         return None
 
     @staticmethod
-    async def sign_up_with_credentials(email: str, password: str, full_name: str, username: str, db: AsyncSession):
-        # Need to check if the email is already in use
-        existing_account = await AccountService.get_account_by_provider(provider="credentials", provider_account_id=email, db=db)
-        if existing_account:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use")
+    async def sign_up_with_credentials(email: str, password: str, name: str, username: str, db: AsyncSession):
+        email = email.strip().lower()
+        username = username.strip()
+        name = name.strip()
+
+        # Create user + credentials account, then issue the same AuthResponse shape as `/auth/login`.
+        user_payload = UserCreate(name=name, username=username, email=email)
+        try:
+            new_user = await UserService.create(payload=user_payload, db=db)
+        except UserConflictError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+        account_payload = AccountCreate(
+            user_id=new_user.id,
+            name=name,
+            image=None,
+            provider="credentials",
+            provider_account_id=email,  # must match `login` lookup key
+            password=password,
+        )
+
+        try:
+            await AccountService.create(payload=account_payload, db=db)
+        except AccountConflictError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        except ValueError:
+            # Typically triggered by credentials password validation (e.g., bcrypt 72-byte limit).
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid password")
+
+        access_token, expires_in = create_access_token(sub=str(new_user.id))
+        refresh_token = await RefreshTokenService.create(user_id=new_user.id, db=db)
+
+        return {
+            "tokens": {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "expires_in": expires_in,
+            },
+            "user": {
+                "id": new_user.id,
+                "email": new_user.email,
+                "name": new_user.name,
+                "image": new_user.image,
+                "username": new_user.username,
+            },
+        }
+        
+        

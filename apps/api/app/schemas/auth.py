@@ -8,7 +8,7 @@ class LoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    full_name: str
+    name: str
     username: str
 
 class TokenPair(BaseModel):

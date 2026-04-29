@@ -15,7 +15,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/register", response_model=AuthResponse)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    return await AuthService.sign_up_with_credentials(email=payload.email, password=payload.password, full_name=payload.full_name, username=payload.username, db=db)
+    return await AuthService.sign_up_with_credentials(email=payload.email, password=payload.password, name=payload.name, username=payload.username, db=db)
 
 @router.post("/refresh", response_model=AuthResponse)
 async def refresh(payload: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):

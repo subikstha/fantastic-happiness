@@ -119,3 +119,27 @@ async def test_refresh_expired_token_returns_401(client):
 
     res = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
     assert res.status_code == 401
+
+
+async def test_register_success_returns_tokens_and_user(client):
+    email = f"reg_{uuid.uuid4().hex[:8]}@example.com"
+    username = f"reg_{uuid.uuid4().hex[:8]}"
+    password = "Password123!"
+    name = "Registered User"
+
+    res = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "name": name,
+            "username": username,
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["user"]["email"] == email
+    assert data["user"]["name"] == name
+    assert data["tokens"]["access_token"]
+    assert data["tokens"]["refresh_token"]
+    assert data["tokens"]["token_type"].lower() == "bearer"
