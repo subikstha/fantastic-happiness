@@ -3,7 +3,6 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
-import { globalSearch } from '@/lib/actions/general.action';
 import { formUrlQuery, removeKeysFromUrlQuery } from '@/lib/url';
 
 import GlobalResult from '../GlobalResult';
@@ -48,25 +47,26 @@ const GlobalSearch = ({ imgSrc, placeholder, otherClasses }: Props) => {
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchQuery) {
-        const newUrl = formUrlQuery({
-          params: searchParams.toString(),
-          key: 'global',
-          value: searchQuery,
-        });
-        searchGlobally(searchQuery);
-        router.push(newUrl, { scroll: false });
-      } else {
+        if ((searchParams.get('global') ?? '') !== searchQuery) {
+          const newUrl = formUrlQuery({
+            params: searchParams.toString(),
+            key: 'global',
+            value: searchQuery,
+          });
+          searchGlobally(searchQuery);
+          router.push(newUrl, { scroll: false });
+        }
+      } else if (searchParams.has('global')) {
         const newUrl = removeKeysFromUrlQuery({
           params: searchParams.toString(),
           keysToRemove: ['global'],
         });
-
         router.push(newUrl, { scroll: false });
       }
     }, 350);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, searchParams, router]);
+  }, [searchQuery, searchParams.toString(), router]);
   return (
     <div
       className="relative w-full max-w-[600px] max-lg:hidden"

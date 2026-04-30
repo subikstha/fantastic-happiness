@@ -31,36 +31,26 @@ const LocalSearch = ({
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      const currentUrl = searchParams.toString()
-        ? `${pathname}?${searchParams.toString()}`
-        : pathname;
-
       if (searchQuery) {
-        const targetUrl = formUrlQuery({
-          params: searchParams.toString(),
-          key: 'query',
-          value: searchQuery,
-        });
-
-        if (targetUrl !== currentUrl) {
+        if ((searchParams.get('query') ?? '') !== searchQuery) {
+          const targetUrl = formUrlQuery({
+            params: searchParams.toString(),
+            key: 'query',
+            value: searchQuery,
+          });
           router.replace(targetUrl, { scroll: false });
         }
-      } else {
-        if (pathname === route && searchParams.has('query')) {
-          const targetUrl = removeKeysFromUrlQuery({
-            params: searchParams.toString(),
-            keysToRemove: ['query'],
-          });
-
-          if (targetUrl !== currentUrl) {
-            router.replace(targetUrl, { scroll: false });
-          }
-        }
+      } else if (pathname === route && searchParams.has('query')) {
+        const targetUrl = removeKeysFromUrlQuery({
+          params: searchParams.toString(),
+          keysToRemove: ['query'],
+        });
+        router.replace(targetUrl, { scroll: false });
       }
     }, 350);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, router, route, searchParams, pathname]);
+  }, [searchQuery, router, route, searchParams.toString(), pathname]);
   return (
     <div
       className={`background-light800_darkgradient flex min-h-[56px] grow items-center gap-4 rounded-[10px] px-4 ${otherClasses}`}

@@ -1,5 +1,8 @@
 import qs from 'query-string';
 
+let formUrlQueryCallCount = 0;
+let removeKeysFromUrlQueryCallCount = 0;
+
 interface UrlQueryParams {
   params: string;
   key: string;
@@ -12,16 +15,19 @@ export const formUrlQuery = ({ params, key, value }: UrlQueryParams) => {
 
   queryString[key] = value;
 
-  console.log(
-    'queryString, current pathname and returned values are',
-    queryString,
-    window.location.pathname,
-    qs.stringifyUrl({ url: window.location.pathname, query: queryString })
-  );
-  return qs.stringifyUrl({
+  formUrlQueryCallCount += 1;
+  const result = qs.stringifyUrl({
     url: window.location.pathname,
     query: queryString,
   });
+  console.log(
+    `[formUrlQuery #${formUrlQueryCallCount}]`,
+    'queryString, pathname, result:',
+    queryString,
+    window.location.pathname,
+    result
+  );
+  return result;
 };
 
 interface RemoveUrlQueryParams {
@@ -39,17 +45,20 @@ export const removeKeysFromUrlQuery = ({
     delete queryString[key];
   });
 
-  console.log(
-    'queryString, current pathname and returned values are',
-    queryString,
-    window.location.pathname,
-    qs.stringifyUrl({ url: window.location.pathname, query: queryString })
-  );
-  return qs.stringifyUrl(
+  removeKeysFromUrlQueryCallCount += 1;
+  const result = qs.stringifyUrl(
     {
       url: window.location.pathname,
       query: queryString,
     },
     { skipNull: true }
   );
+  console.log(
+    `[removeKeysFromUrlQuery #${removeKeysFromUrlQueryCallCount}]`,
+    'queryString, pathname, result:',
+    queryString,
+    window.location.pathname,
+    result
+  );
+  return result;
 };
