@@ -152,6 +152,31 @@ Result: both credentials and OAuth converge to one internal identity (`token.sub
 
 Together they make identity available consistently to UI/components/server actions.
 
+### Access token refresh lifecycle (completed)
+
+The credentials flow now includes token lifecycle handling in `auth.ts`:
+
+- At sign-in, FastAPI returns `access_token`, `refresh_token`, and `expires_in`.
+- NextAuth stores these token values in the JWT callback payload (server-side token state).
+- The JWT callback should check whether the **access token** is expired.
+  - If still valid, keep current token state.
+  - If expired, call FastAPI `POST /auth/refresh` with the stored refresh token.
+- On refresh success, update:
+  - `accessToken`
+  - `accessTokenExpiresAt` (absolute timestamp)
+  - `refreshToken` (use rotated value if returned)
+- On refresh failure (expired/invalid refresh token), mark an error on token/session and require re-authentication.
+
+Important clarification:
+
+- Access token refresh is triggered when the **access token expires**.
+- If the **refresh token** is expired, refresh will fail; no new access token can be issued.
+
+Security note:
+
+- Keep `refreshToken` server-side in JWT state.
+- Do not expose `refreshToken` on `session.user`; expose access token only if client-side API calls require it.
+
 ### Conceptual change
 
 Stop doing “fetch account + bcrypt in Next” and instead **POST to FastAPI** (for example `POST /api/v1/auth/login` with `{ email, password }`), then use the JSON response (`tokens` + `user`) to drive NextAuth.

@@ -7,6 +7,33 @@ import { IAccountDoc } from './database/account.model';
 import { api } from './lib/api';
 import { SignInSchema } from './lib/validations';
 
+async function refreshAccessToken(token: any) {
+  try {
+    if (!token.refreshToken) {
+      return { ...token, error: 'MissingRefreshToken' };
+    }
+    // Example direct call; adapt to your api helper if you add api.auth.refresh(...)
+    const res = await fetch(`${process.env.FASTAPI_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: token.refreshToken }),
+    });
+    if (!res.ok) {
+      return { ...token, error: 'RefreshAccessTokenError' };
+    }
+    const data = await res.json(); // FastAPI AuthResponse shape
+    return {
+      ...token,
+      accessToken: data.tokens.access_token,
+      refreshToken: data.tokens.refresh_token ?? token.refreshToken, // rotation-safe
+      accessTokenExpiresAt: Date.now() + data.tokens.expires_in * 1000,
+      error: undefined,
+    };
+  } catch {
+    return { ...token, error: 'RefreshAccessTokenError' };
+  }
+}
+
 // We will check if the sign-in account type is credentials; if yes, then we skip. We'll handle it the other way around when doing email password based authentication
 
 // But if the account type is not credentials, then we'll call this new `signin-with-oauth` route and create oAuth accounts.
@@ -29,7 +56,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               image: user.image ?? undefined,
               accessToken: tokens.access_token,
               refreshToken: tokens.refresh_token,
-              accessTokenExpires: tokens.expires_in
+              accessTokenExpiresAt: tokens.expires_in,
             };
           }
         }
@@ -42,6 +69,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async session({ session, token }) {
       session.user.id = token.sub as string;
+      session.user.accessToken = token.accessToken as string;
+      // session.user.refreshToken = token.refreshToken as string;
+      // session.user.accessTokenExpires = token.accessTokenExpires as number;
       // session.token = token;
       return session;
     },
@@ -50,7 +80,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.sub = user.id;
         token.accessToken = user.accessToken as string;
         token.refreshToken = user.refreshToken as string;
-        token.accessTokenExpires = user.accessTokenExpires as number;
+        token.accessTokenExpires = user.accessTokenExpiresAt as number;
+        return token;
+      }
+
+      // If still valid, reuse token
+      if (
+        typeof token.accessTokenExpiresAt === 'number' &&
+        Date.now() < token.accessTokenExpiresAt
+      ) {
+        return token;
       }
 
       if (account && account.type !== 'credentials') {
@@ -67,7 +106,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
 
       // console.log('token and accounts are', token, account?.access_token);
-      return token;
+      return refreshAccessToken(token);
     },
     async signIn({ user, profile, account }) {
       if (account?.type === 'credentials') {
