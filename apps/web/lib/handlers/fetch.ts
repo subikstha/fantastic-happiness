@@ -43,10 +43,40 @@ export async function fetchHandler<T>(
     const response = await fetch(url, config);
     clearTimeout(id);
 
-    if (!response.ok)
-      throw new RequestError(response.status, `HTTP Error: ${response.status}`);
+    if (!response.ok) {
+      let message = `HTTP Error: ${response.status}`;
+      let details: Record<string, string[]> | undefined;
+
+      try {
+        const errorJson = await response.json();
+        const detail = errorJson?.detail;
+
+        if (typeof detail === 'string') {
+          message = detail;
+        } else if (Array.isArray(detail)) {
+          message = 'Validation failed';
+          details = {};
+          for (const item of detail) {
+            const field = Array.isArray(item?.loc)
+              ? item.loc.map(String).join('.')
+              : 'request';
+            const itemMessage =
+              typeof item?.msg === 'string' ? item.msg : 'Invalid value';
+            details[field] = [...(details[field] ?? []), itemMessage];
+          }
+        }
+      } catch {
+        // Leave default HTTP message when response is not JSON.
+      }
+
+      throw new RequestError(response.status, message, details);
+    }
+
     const json = await response.json();
-    return (raw ? json : (json as ActionResponse<T>)) as T;
+    if (raw) {
+      return json as T;
+    }
+    return json as T;
   } catch (err) {
     const error = isError(err) ? err : new Error('Unknown Error');
     if (error.name === 'AbortError') {

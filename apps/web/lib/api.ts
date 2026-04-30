@@ -23,15 +23,54 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ user, provider, providerAccountId }),
       }),
-    register: (email: string, password: string, name: string, username: string): Promise<FastApiAuthResponse> =>
-      fetchHandler(`${FASTAPI_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers:{
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-      body: JSON.stringify({ email, password, name, username }),
-      }),
+    register: async (
+      email: string,
+      password: string,
+      name: string,
+      username: string
+    ): Promise<ActionResponse<FastApiAuthResponse>> => {
+      const response = await fetchHandler<FastApiAuthResponse | ErrorResponse>(
+        `${FASTAPI_BASE_URL}/auth/register`,
+        {
+          method: 'POST',
+          raw: true,
+          body: JSON.stringify({ email, password, name, username }),
+        }
+      );
+
+      if ('success' in response) {
+        return response as ErrorResponse;
+      }
+
+      return {
+        success: true,
+        data: response,
+        status: 200,
+      };
+    },
+    login: async (
+      email: string,
+      password: string
+    ): Promise<ActionResponse<FastApiAuthResponse>> => {
+      const response = await fetchHandler<FastApiAuthResponse | ErrorResponse>(
+        `${FASTAPI_BASE_URL}/auth/login`,
+        {
+          method: 'POST',
+          raw: true,
+          body: JSON.stringify({ email, password }),
+        }
+      );
+      
+      if ('success' in response) {
+        return response as ErrorResponse;
+      }
+
+      return {
+        success: true,
+        data: response,
+        status: 200,
+      };
+    }
   },
   users: {
     getAll: () => fetchHandler(`${API_BASE_URL}/users`),

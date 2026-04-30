@@ -11,6 +11,7 @@ import { HomePageFilters } from '@/constants/filters';
 import ROUTES from '@/constants/routes';
 import { EMPTY_QUESTION } from '@/constants/states';
 import { getQuestions } from '@/lib/actions/question.action';
+import CheckSession from '@/components/CheckSession';
 
 interface SearchParams {
   searchParams: Promise<{ [key: string]: string }>;
@@ -39,6 +40,7 @@ const Home = async ({ searchParams }: SearchParams) => {
   // });
   return (
     <>
+      <CheckSession />
       <section className=" flex w-full flex-col-reverse justify-between gap-4 sm:flex-row sm:items-center">
         <h1 className="h1-bold text-dark100_light900">All Questions</h1>
         <Button className="primary-gradient min-h-[46px] px-4 py-3 !text-light-900">

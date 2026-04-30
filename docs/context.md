@@ -65,6 +65,9 @@ StackOverflow clone using Next.js + FastAPI
   - password required for `provider="credentials"`
   - password byte-length guard for bcrypt (`<= 72` bytes)
 - Fixed hashing compatibility issue by pinning `bcrypt` to `<5` in API dependencies.
+- Eliminated passlib startup traceback (`module 'bcrypt' has no attribute '__about__'`) by pinning API runtime to `bcrypt==4.0.1` and resyncing `apps/api/.venv` with `uv sync`.
+  - Quick verification command:
+    - `uv run python -c "import bcrypt, passlib; print(bcrypt.__version__, passlib.__version__)"`
 - Added model exports for Alembic metadata discovery (`RefreshToken` import in models package).
 
 ## Major structural change completed

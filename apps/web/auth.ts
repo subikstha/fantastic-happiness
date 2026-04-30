@@ -1,11 +1,9 @@
-import bcrypt from 'bcryptjs';
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import GitHub from 'next-auth/providers/github';
 import Google from 'next-auth/providers/google';
 
 import { IAccountDoc } from './database/account.model';
-import { IUserDoc } from './database/user.model';
 import { api } from './lib/api';
 import { SignInSchema } from './lib/validations';
 
@@ -21,31 +19,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const validatedFields = SignInSchema.safeParse(credentials);
         if (validatedFields.success) {
           const { email, password } = validatedFields.data;
-          // TODO: Call the fastapi endpoint to sign in with credentials
-          // const signInResponse = await fetch('http://localhost:8000/')
-          const { data: existingAccount } = (await api.accounts.getByProvider(
-            email
-          )) as ActionResponse<IAccountDoc>;
-
-          if (!existingAccount) return null;
-
-          const { data: existingUser } = (await api.users.getById(
-            existingAccount.userId.toString()
-          )) as ActionResponse<IUserDoc>;
-
-          if (!existingUser) return null;
-
-          const isValidPassword = await bcrypt.compare(
-            password,
-            existingAccount.password!
-          );
-
-          if (isValidPassword) {
+          const loginResponse = await api.auth.login(email, password);
+          if (loginResponse.success && loginResponse.data) {
+            const { user, tokens } = loginResponse.data;
             return {
-              id: existingUser._id.toString(),
-              name: existingUser.name,
-              email: existingUser.email,
-              image: existingUser.image,
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              image: user.image ?? undefined,
+              accessToken: tokens.access_token,
+              refreshToken: tokens.refresh_token,
+              accessTokenExpires: tokens.expires_in
             };
           }
         }
@@ -61,13 +45,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // session.token = token;
       return session;
     },
-    async jwt({ token, account }) {
-      if (account) {
+    async jwt({ token, account, user }) {
+      if (user?.id) {
+        token.sub = user.id;
+        token.accessToken = user.accessToken as string;
+        token.refreshToken = user.refreshToken as string;
+        token.accessTokenExpires = user.accessTokenExpires as number;
+      }
+
+      if (account && account.type !== 'credentials') {
         const { data: existingAccount, success } =
           (await api.accounts.getByProvider(
-            account.type === 'credentials'
-              ? token.email!
-              : account.providerAccountId
+            account.providerAccountId
           )) as ActionResponse<IAccountDoc>;
 
         if (!success || !existingAccount) return token;

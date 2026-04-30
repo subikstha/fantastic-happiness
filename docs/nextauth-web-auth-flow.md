@@ -54,6 +54,104 @@ Why this decision:
 - keeps FastAPI reusable for other clients (CLI/mobile/other web apps)
 - gives the Next.js UI a single predictable `ActionResponse` contract across actions
 
+### Register integration status (implemented)
+
+The register bridge is now implemented in the web layer with the adapter pattern above:
+
+- `api.auth.register` calls FastAPI register (`/auth/register` under `FASTAPI_BASE_URL`) and returns `ActionResponse<FastApiAuthResponse>`.
+- Success mapping: raw FastAPI `AuthResponse` (`tokens + user`) is wrapped as `{ success: true, data, status }`.
+- Error mapping: non-2xx responses are wrapped as `{ success: false, error, status }`.
+
+Related implementation files:
+
+- `apps/web/lib/api.ts`
+- `apps/web/lib/actions/auth.action.ts`
+- `apps/web/lib/handlers/fetch.ts`
+
+### Error handling behavior (implemented)
+
+`fetchHandler` now parses FastAPI error payloads and preserves useful UI messages:
+
+- If backend returns `{"detail": "Email already in use"}`, frontend error message becomes `Email already in use`.
+- If backend returns validation errors (`detail` array, typical `422`), they are mapped into `error.details` field map.
+- Fallback remains `HTTP Error: <status>` when response is not JSON.
+
+This prevents generic registration failures and lets the UI show actionable errors for `409` conflict and `422` validation cases.
+
+### Credentials sign-in ownership (implemented)
+
+Credentials sign-in now has a single verification source:
+
+- `apps/web/auth.ts` (`Credentials.authorize`) calls `api.auth.login(email, password)` to validate credentials against FastAPI.
+- On success, `authorize` returns the normalized user object to NextAuth.
+- `jwt` callback sets `token.sub` directly from `user.id` for credentials sign-ins, avoiding legacy account lookups.
+
+`signInWithCredentials` in `apps/web/lib/actions/auth.action.ts` is now orchestration-only:
+
+- validates input
+- calls `signIn('credentials', { email, password, redirect: false })`
+- returns normalized `ActionResponse`
+
+This removes duplicate `/auth/login` calls and keeps sign-in responsibility centralized in NextAuth `authorize`.
+
+### NextAuth `jwt` and `session` callbacks (why both are needed)
+
+When using NextAuth JWT sessions, the identity usually flows through two steps:
+
+1. Write canonical identity into the token (`jwt` callback).
+2. Expose that identity on the app-facing session (`session` callback).
+
+#### Current code shape
+
+```ts
+callbacks: {
+  async session({ session, token }) {
+    session.user.id = token.sub as string;
+    return session;
+  },
+  async jwt({ token, account, user }) {
+    if (user?.id) {
+      token.sub = user.id;
+    }
+
+    if (account && account.type !== 'credentials') {
+      const { data: existingAccount, success } =
+        (await api.accounts.getByProvider(account.providerAccountId)) as ActionResponse<IAccountDoc>;
+
+      if (!success || !existingAccount) return token;
+
+      const userId = existingAccount.userId;
+      if (userId) token.sub = userId.toString();
+    }
+
+    return token;
+  },
+}
+```
+
+#### What `jwt` callback is doing
+
+- Runs during sign-in and later token/session checks.
+- `token` is the persisted auth payload.
+- `token.sub` is the standard JWT **subject** claim (the canonical user identity).
+- On credentials sign-in, `user.id` is available from `authorize`, so `token.sub = user.id`.
+- On OAuth sign-in, account linking resolves provider account to internal user id and sets `token.sub` to that id.
+
+Result: both credentials and OAuth converge to one internal identity (`token.sub`).
+
+#### What `session` callback is doing
+
+- Shapes the session object returned by `auth()` / `useSession()`.
+- Copies `token.sub` into `session.user.id` so app code has a stable internal user id.
+- Without this copy, app code might only see name/email/image and lack the DB user id.
+
+#### Why assign both?
+
+- `token.sub = user.id` in `jwt` persists identity in the token layer.
+- `session.user.id = token.sub` in `session` exposes that persisted identity in the session layer.
+
+Together they make identity available consistently to UI/components/server actions.
+
 ### Conceptual change
 
 Stop doing “fetch account + bcrypt in Next” and instead **POST to FastAPI** (for example `POST /api/v1/auth/login` with `{ email, password }`), then use the JSON response (`tokens` + `user`) to drive NextAuth.

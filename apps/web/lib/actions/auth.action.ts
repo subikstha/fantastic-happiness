@@ -1,16 +1,11 @@
 'use server';
-import bcrypt from 'bcryptjs';
-import mongoose from 'mongoose';
 
 import { signIn } from '@/auth';
-import Account from '@/database/account.model';
-import User from '@/database/user.model';
 
+import { api } from '../api';
 import action from '../handlers/action';
 import handleError from '../handlers/error';
-import { NotFoundError } from '../http-errors';
 import { SignInSchema, SignUpSchema } from '../validations';
-import { api } from '../api';
 
 export async function signUpWithCredentials(
   params: AuthCredentials
@@ -22,15 +17,21 @@ export async function signUpWithCredentials(
   }
 
   const { name, username, email, password } = validationResult.params!;
-  console.log('parameters are', name, username, email, password);
-
 
   try {
     const registerResponse = await api.auth.register(email, password, name, username);
-    if (!registerResponse) {
-      return registerResponse as ErrorResponse;
+    if (!registerResponse.success) {
+      return registerResponse;
     }
-    return { success: true, data: registerResponse, status: 201 };
+
+    // Need to sign in the user after registration to create a session
+    await signIn('credentials', { email, password, redirect: false });
+
+    return {
+      success: true,
+      data: registerResponse.data,
+      status: registerResponse.status ?? 200,
+    };
   } catch (error) {
     return handleError(error) as ErrorResponse;
   }
@@ -47,27 +48,10 @@ export async function signInWithCredentials(
 
   const { email, password } = validationResult.params!;
 
-  // In the case of sign in we donot have to create a new session since we are not doing any mutations
   try {
-    const existingUser = await User.findOne({ email });
-
-    if (!existingUser) throw new NotFoundError('User');
-
-    const existingAccount = await Account.findOne({
-      provider: 'credentials',
-      providerAccountId: email,
-    });
-
-    if (!existingAccount) throw new NotFoundError('Account');
-
-    const passwordMatch = await bcrypt.compare(
-      password,
-      existingAccount.password
-    );
-
-    if (!passwordMatch) throw new Error('Passwords do not match');
+    // Credentials verification now happens in NextAuth authorize via FastAPI login.
     await signIn('credentials', { email, password, redirect: false });
-    return { success: true };
+    return { success: true, status: 200 };
   } catch (error) {
     return handleError(error) as ErrorResponse;
   }
