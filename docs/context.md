@@ -19,9 +19,17 @@ StackOverflow clone using Next.js + FastAPI
 - Alembic configured
 
 ## Next Tasks
-- Next.js → FastAPI credentials login (frontend calls `/auth/login`, session/JWT wiring)
-- Domain: questions / answers / tags (after auth integration)
-- OAuth (Google/GitHub): **deferred** — see Recommended next steps below
+1. **Post questions (logged-in users):** end-to-end flow so an authenticated user can create a question against FastAPI (protected `POST` with JWT, Next.js ask-question UI + server action or client wiring, env `FASTAPI_BASE_URL`, migration for `questions` / tags if not applied). Verify list/detail pages can show the new post or document follow-up if reads still use Mongo.
+2. Domain after that: question listing/detail from FastAPI, answers, votes, tags.
+
+## Authentication — deferred (do later)
+
+- **OAuth (Google/GitHub):** provider consoles, redirect URIs, finish `/auth/oauth/...` flow; `SessionMiddleware` and cookie behavior — see `docs/oauth/oauth-route.md`, `docs/oauth/session-middleware-requirement.md`.
+- **Refresh token UX:** silent refresh before API calls when access token is near expiry; surface `RefreshAccessTokenError` in the UI.
+- **Shared FastAPI client:** one helper for `Authorization: Bearer` and refresh (replace ad-hoc `fetch` in NextAuth refresh with the same pattern as `api.auth.*`).
+- **Logout / revoke contract:** align unknown refresh token behavior (`401` vs idempotent `204`); call FastAPI logout with refresh token on sign-out when applicable.
+- **Hardening:** production CORS, cookie/`same_site`/`secure`, validate server-only `FASTAPI_BASE_URL` per environment.
+- **Optional:** extend integration/E2E tests for authenticated flows.
 
 ## Notes
 - Using UUID for IDs
@@ -156,16 +164,11 @@ uv run pytest -q
 
 ## Recommended immediate next steps
 
-1. **Prioritize: Next.js uses FastAPI credentials login** (OAuth sign-in **postponed** for now).
-   - Implement the flow described in `docs/nextauth-web-auth-flow.md`: replace or augment the Credentials provider so `authorize` calls **`POST /api/v1/auth/login`** on the FastAPI base URL (server-side; use a dedicated env var e.g. `FASTAPI_URL` or server-only secret URL).
-   - Propagate **access** (and optionally **refresh**) tokens through NextAuth **`jwt` / `session`** callbacks so the app can send **`Authorization: Bearer`** to FastAPI for protected routes.
-   - Keep **Next.js API routes** only where still needed; new protected reads/writes should target FastAPI as the backend of record.
-   - OAuth routes (`/auth/oauth/{provider}/start|callback`) and Authlib setup can stay in the API but **do not need to be finished or exposed in the product** until provider credentials and redirects are ready.
-2. Decide refresh-token revoke policy contract:
-   - strict `401` for unknown token, or idempotent logout `204`
-   - keep service and endpoint behavior aligned to that choice
-3. **Deferred:** OAuth sign-in migration (Google/GitHub): resume after credentials-from-FastAPI is stable — provider console setup, redirect URIs, `SessionMiddleware` + session cookie behavior (see `docs/oauth/oauth-route.md`, `docs/oauth/session-middleware-requirement.md`).
-4. Next domain phases: votes → questions / answers / tags.
+1. **Logged-in user can post a question** (see **Next Tasks** at top): FastAPI `POST /api/v1/questions` with Bearer token, Next.js ask flow, DB migration, and basic verification (session carries `accessToken`; `FASTAPI_BASE_URL` includes `/api/v1`).
+2. **Read path for questions:** `GET` list/detail from FastAPI so new posts appear without depending on Mongo for that slice.
+3. Further domain: answers, votes, tags — migrate or retire parallel Mongo usage per feature.
+
+Auth polish and OAuth are listed under **Authentication — deferred (do later)** above.
 #Docker command to enter interactive psql mode
 #sudo docker exec -it devflow-postgres psql -U postgres -d devflow
 

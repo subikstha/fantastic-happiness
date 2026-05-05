@@ -60,7 +60,7 @@ export const api = {
           body: JSON.stringify({ email, password }),
         }
       );
-      
+
       if ('success' in response) {
         return response as ErrorResponse;
       }
@@ -70,7 +70,7 @@ export const api = {
         data: response,
         status: 200,
       };
-    }
+    },
   },
   users: {
     getAll: () => fetchHandler(`${API_BASE_URL}/users`),
