@@ -63,7 +63,10 @@ class QuestionService:
                 "author": q.author,
                 "tags": [tq.tag for tq in q.tag_questions],
                 "created_at": q.created_at,
-                "updated_at": q.updated_at,
+                "answers": q.answers,
+                "views": q.views,
+                "upvotes": q.upvotes,
+                "downvotes": q.downvotes,
             }
             for q in questions # iterates each Question and build a new QuestionRead object for each
         ]

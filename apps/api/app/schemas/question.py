@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class QuestionCreate(BaseModel):
     title: str
@@ -24,12 +24,15 @@ class QuestionTagRead(BaseModel):
 
 
 class QuestionRead(BaseModel):
-    id: UUID
+    id: UUID = Field(serialization_alias="_id")
     title: str
     content: str
     author: QuestionAuthorRead
     tags: list[QuestionTagRead]
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime = Field(serialization_alias="createdAt")
+    upvotes: int
+    downvotes: int
+    answers: int
+    views: int
 
     model_config = {"from_attributes": True}
