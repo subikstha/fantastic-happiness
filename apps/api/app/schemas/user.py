@@ -26,4 +26,4 @@ class UserRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True} # This is used to convert the database model to a Pydantic model. since endpoint returns ORM object(Question), adding from_attributes is the safe/standard pattern
