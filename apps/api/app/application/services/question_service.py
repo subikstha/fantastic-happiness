@@ -1,7 +1,8 @@
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.question import QuestionCreate
+from app.schemas.question import QuestionCreate, QuestionRead
 
 from app.infrastructure.db.models.question import Question
 from app.infrastructure.db.models import User
@@ -46,3 +47,23 @@ class QuestionService:
         await db.commit()
         await db.refresh(question)
         return question
+
+    @staticmethod
+    async def get_all(db: AsyncSession) -> list[QuestionRead]:
+        
+        # TODO: need to add pagination and filtering and also get all the associated tags and author for each question
+        stmt = select(Question).options(selectinload(Question.author), selectinload(Question.tag_questions).selectinload(TagQuestion.tag))
+        result = await db.execute(stmt)
+        questions = result.scalars().all() # gets Question ORM rows from SQLAlchemy result
+        return [
+            {
+                "id": q.id,
+                "title": q.title,
+                "content": q.content,
+                "author": q.author,
+                "tags": [tq.tag for tq in q.tag_questions],
+                "created_at": q.created_at,
+                "updated_at": q.updated_at,
+            }
+            for q in questions # iterates each Question and build a new QuestionRead object for each
+        ]
