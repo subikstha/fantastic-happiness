@@ -8,6 +8,8 @@ from app.infrastructure.db.base import Base
 
 if TYPE_CHECKING:
     from app.infrastructure.db.models.user import User
+    from app.infrastructure.db.models.tag_question import TagQuestion
+    from app.infrastructure.db.models.tag import Tag
 
 # Question -> Python class representing one question row in the DB
 
@@ -19,7 +21,6 @@ class Question(Base):
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    tags: Mapped[list[str]] = mapped_column(ARRAY(String(255)), nullable=False)
     views: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     upvotes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     downvotes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -28,5 +29,6 @@ class Question(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     author: Mapped["User"] = relationship("User", back_populates="questions")
+    tag_questions: Mapped[list["TagQuestion"]] = relationship("TagQuestion", back_populates="question", cascade="all, delete-orphan")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
