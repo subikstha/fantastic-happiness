@@ -28,4 +28,4 @@ class Answer(Base):
     question_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("questions.id", ondelete="CASCADE"), nullable=False
     )
-    question: Mapped["Question"] = relationship("Question", back_populates="answers")
+    question: Mapped["Question"] = relationship("Question", back_populates="answer")

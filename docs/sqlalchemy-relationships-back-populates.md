@@ -108,6 +108,27 @@ cascade="all, delete-orphan"
 4. **`TYPE_CHECKING`** imports for type hints only where needed.
 5. Decide deliberately whether **`delete-orphan`** matches product rules for that child type.
 
+## How this relates to `selectinload`
+
+`back_populates` is not itself a loading strategy, but it is part of the relationship mapping that loader options use.
+
+- `selectinload(Question.author)` and `selectinload(Question.tag_questions)` operate on mapped relationship attributes.
+- Correctly paired `back_populates` improves mapper consistency and in-memory synchronization when both sides are used in one unit of work.
+- Mismatched names in `back_populates` (for example `"answer"` vs `answers`) can fail mapper configuration before query loading even runs.
+
+In short: `selectinload` controls *how* related rows are fetched; `back_populates` defines *which attributes are the two ends of the same relationship*.
+
+## Naming note for this project
+
+If a model already has a scalar count field like `answers: int`, avoid reusing the same attribute name for a relationship collection.
+
+Use distinct names, for example:
+
+- count column: `answers` (int)
+- relationship collection: `answer` or `answer_items`
+
+Whichever naming style you choose (singular or plural), keep `back_populates` strings exactly aligned on both sides.
+
 ## See also
 
 - SQLAlchemy: [Relationships API](https://docs.sqlalchemy.org/en/20/orm/relationship_api.html) and [Cascades](https://docs.sqlalchemy.org/en/20/orm/cascades.html)
