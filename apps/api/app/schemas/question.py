@@ -37,6 +37,11 @@ class QuestionReadItem(BaseModel):
 
     model_config = {"from_attributes": True}
 
+class QuestionIncrementViewsItem(BaseModel):
+    views: int
+
+    model_config = {"from_attributes": True}
+
 class QuestionRead(BaseModel):
     questions: list[QuestionReadItem]
     isNext: bool

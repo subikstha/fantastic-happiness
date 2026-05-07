@@ -17,12 +17,13 @@ import { hasSavedQuestion } from '@/lib/actions/collection.action';
 import { getQuestion, incrementViews } from '@/lib/actions/question.action';
 import { hasVoted } from '@/lib/actions/vote.action';
 import { formatNumber, getTimeStamp } from '@/lib/utils';
+import { api } from '@/lib/api';
 
 export async function generateMetadata({
   params,
 }: RouteParams): Promise<Metadata> {
   const { id } = await params;
-  const { success, data: question } = await getQuestion({ questionId: id });
+  const { success, data: question } = await api.questions.getOne(id);
 
   if (!success || !question) {
     return {
@@ -49,8 +50,8 @@ const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
 
   // NOTE: We can only do parallel requests like below if one request does not depend on another
   const [, { success, data: question }] = await Promise.all([
-    await incrementViews({ questionId: id }),
-    await getQuestion({ questionId: id }),
+    await api.questions.incrementViews(id),
+    await api.questions.getOne(id),
   ]);
 
   if (!success || !question) redirect('/404');

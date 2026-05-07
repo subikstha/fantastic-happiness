@@ -2,10 +2,11 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.question import QuestionCreate, QuestionRead
+from app.schemas.question import QuestionCreate, QuestionRead, QuestionReadItem
 
 from app.infrastructure.db.models.question import Question
 from app.infrastructure.db.models import User
+from uuid import UUID
 from app.infrastructure.db.models.tag import Tag
 from app.infrastructure.db.models.tag_question import TagQuestion
 
@@ -13,6 +14,30 @@ class QuestionConflictError(Exception):
     pass
 
 class QuestionService:
+
+    @staticmethod
+    async def get_question(question_id: UUID, db: AsyncSession) -> QuestionReadItem:
+        stmt = select(Question).where(Question.id == question_id).options(
+            selectinload(Question.author),
+            selectinload(Question.tag_questions).selectinload(TagQuestion.tag)
+        )
+        question = (await db.execute(stmt)).scalar_one_or_none() # If scalar_one() is used, it will raise an error if no question is found, the next line will not be executed
+        if question is None:
+            raise QuestionConflictError("Question not found")
+        return {
+            "id": question.id,
+            "title": question.title,
+            "content": question.content,
+            "author": question.author,
+            "tags": [tq.tag for tq in question.tag_questions],
+            "created_at": question.created_at,
+            "answers": question.answers,
+            "views": question.views,
+            "upvotes": question.upvotes,
+            "downvotes": question.downvotes,
+        }
+
+
     @staticmethod
     async def create(payload: QuestionCreate, db: AsyncSession, current_user: User):
         question = Question(
@@ -130,4 +155,17 @@ class QuestionService:
         return {
             "questions": items,
             "isNext": total > (skip + len(items))
+        }
+
+    @staticmethod
+    async def increment_views(question_id: UUID, db: AsyncSession):
+        stmt = select(Question).where(Question.id == question_id)
+        question = (await db.execute(stmt)).scalar_one_or_none()
+        if question is None:
+            raise QuestionConflictError("Question not found")
+        question.views += 1
+        await db.commit()
+        await db.refresh(question)
+        return {
+            "views": question.views,
         }

@@ -275,3 +275,76 @@ Together, this statement is: **filtered questions, sorted, with relationships ea
   - `questions: list[QuestionRead]`
   - `isNext: bool`
 
+---
+
+## 4) Troubleshooting: `MissingGreenlet` in create endpoint
+
+### Symptom
+
+When creating a question, the API returns `500` and traceback includes:
+
+- `sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been called`
+- often triggered while accessing `question.tag_questions` or other lazy relationships in async code
+
+### Why this happens
+
+In async SQLAlchemy, relationship access can trigger implicit database IO (lazy loading).  
+If that lazy load happens in a place where SQLAlchemy cannot safely perform async IO implicitly, it raises `MissingGreenlet`.
+
+Typical problematic pattern in a create flow:
+
+```python
+await db.commit()
+await db.refresh(question)
+
+return {
+    "tags": [tq.tag for tq in question.tag_questions],  # lazy load here
+}
+```
+
+Here, `question.tag_questions` may not be preloaded, so SQLAlchemy tries to fetch it lazily at access time.
+
+### Fix approach
+
+After commit, run an explicit query for the created question with eager loading (`selectinload`) for every relationship your response needs (`author`, `tag_questions.tag`), then build response from that loaded object.
+
+```python
+stmt = (
+    select(Question)
+    .where(Question.id == question_id)
+    .options(
+        selectinload(Question.author),
+        selectinload(Question.tag_questions).selectinload(TagQuestion.tag),
+    )
+)
+created = (await db.execute(stmt)).scalar_one()
+
+return {
+    "id": created.id,
+    "title": created.title,
+    "content": created.content,
+    "author": created.author,
+    "tags": [tq.tag for tq in created.tag_questions],
+    "created_at": created.created_at,
+    "answers": created.answers,
+    "views": created.views,
+    "upvotes": created.upvotes,
+    "downvotes": created.downvotes,
+}
+```
+
+### Why this fix works
+
+- No implicit lazy load at serialization time.
+- All required relations are fetched in a controlled async query.
+- Response model fields (`author`, `tags`, etc.) are guaranteed to be present.
+
+### Extra recommendation
+
+Use separate response schemas for:
+
+- single-item create response (`QuestionReadItem`)
+- list envelope response (`QuestionListResponse` / `QuestionRead` with `questions` + `isNext`)
+
+This avoids response validation errors where create endpoints accidentally use list-style models.
+

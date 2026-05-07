@@ -97,6 +97,39 @@ export const api = {
     },
   },
   questions: {
+    getOne: async (questionId: string): Promise<ActionResponse<Question>> => {
+      const response = await fetchHandler<Question | ErrorResponse>(
+        `${FASTAPI_BASE_URL}/questions/${questionId}`
+      );
+      if ('success' in response) {
+        return response as ErrorResponse;
+      }
+
+      return {
+        success: true,
+        data: response,
+        status: 200,
+      };
+    },
+    incrementViews: async (
+      questionId: string
+    ): Promise<ActionResponse<{ views: number }>> => {
+      const response = await fetchHandler<{ views: number } | ErrorResponse>(
+        `${FASTAPI_BASE_URL}/questions/${questionId}/increment-views`,
+        {
+          method: 'POST',
+        }
+      );
+      if ('success' in response) {
+        return response as ErrorResponse;
+      }
+
+      return {
+        success: true,
+        data: { views: response.views },
+        status: 200,
+      };
+    },
     create: async (
       question: {
         title: string;
