@@ -9,7 +9,7 @@ from app.infrastructure.db.base import Base
 if TYPE_CHECKING:
     from app.infrastructure.db.models.user import User
     from app.infrastructure.db.models.tag_question import TagQuestion
-    from app.infrastructure.db.models.tag import Tag
+    from app.infrastructure.db.models.answer import Answer
 
 # Question -> Python class representing one question row in the DB
 
@@ -28,6 +28,7 @@ class Question(Base):
     author_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    answer: Mapped[list["Answer"]] = relationship("Answer", back_populates="question", cascade="all, delete-orphan")
     author: Mapped["User"] = relationship("User", back_populates="questions")
     tag_questions: Mapped[list["TagQuestion"]] = relationship("TagQuestion", back_populates="question", cascade="all, delete-orphan")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

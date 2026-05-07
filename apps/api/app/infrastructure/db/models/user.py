@@ -14,6 +14,7 @@ from app.infrastructure.db.base import Base
 if TYPE_CHECKING:
     from app.infrastructure.db.models.account import Account
     from app.infrastructure.db.models.question import Question
+    from app.infrastructure.db.models.answer import Answer
 
 
 class User(Base):
@@ -31,6 +32,7 @@ class User(Base):
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     portfolio: Mapped[str | None] = mapped_column(String(500), nullable=True)
     reputation: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    answers: Mapped[list["Answer"]] = relationship("Answer", back_populates="author", cascade="all, delete-orphan")
     
 
     created_at: Mapped[datetime] = mapped_column(

@@ -5,5 +5,6 @@ from app.infrastructure.db.models.refresh_token import RefreshToken
 from app.infrastructure.db.models.question import Question
 from app.infrastructure.db.models.tag import Tag
 from app.infrastructure.db.models.tag_question import TagQuestion
+from app.infrastructure.db.models.answer import Answer
 
-__all__ = ["User", "Account", "RefreshToken", "Question", "Tag", "TagQuestion"]
+__all__ = ["User", "Account", "RefreshToken", "Question", "Tag", "TagQuestion", "Answer"]
