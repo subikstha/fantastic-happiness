@@ -148,6 +148,97 @@ class QuestionService:
 
 ---
 
+## 2a) QuestionService: detailed explanations
+
+### Why `conditions = []`
+
+`conditions` is a **list of SQLAlchemy boolean expressions** (column comparisons, `or_()`, etc.) that will all be combined in the final `WHERE` clause.
+
+Starting with an empty list lets you **add filters only when needed**:
+
+- If the user passes no `query` and no special `filter`, the list stays empty and you do not add a `WHERE` clause at all (all rows match).
+- If the user passes a search string, you append one expression.
+- If the user picks `unanswered`, you append another.
+
+This pattern avoids a long chain of `if/else` that builds different `select()` statements from scratch for every combination of optional filters.
+
+### Why `q` is an f-string (`f"%{query.strip()}%"`)
+
+SQL `ILIKE` (and `LIKE`) use **pattern** strings, not plain substring checks:
+
+- `%` means “any characters before/after.”
+- Wrapping the user’s text as `%{query}%` means “match if title or content **contains** this substring (case-insensitive).”
+
+`query.strip()` removes accidental leading/trailing spaces so `"  react  "` does not become a different pattern than `"react"`.
+
+**Security note:** You are not interpolating raw user text into SQL as string concatenation in the query itself; you bind the pattern as a parameter through SQLAlchemy’s `ilike(q)`. The f-string only builds the Python string that becomes the bound value.
+
+### Why `conditions.append(...)`
+
+Each `append` adds **one more requirement** that must be true for a row to be included.
+
+SQLAlchemy’s `where(*conditions)` combines them with **AND** by default when you pass multiple expressions. So:
+
+- Search + `unanswered` means: *(title/content matches pattern) **AND** (answers == 0)*.
+
+Using `append` keeps each concern separate and readable instead of nesting many `if` blocks inside a single giant `where(...)`.
+
+### `order_by`: why not `conditions.append`, and why `[Question.upvotes.desc()]`
+
+**`conditions` is only for the `WHERE` clause** (which rows to include). **Sorting** is a different part of the SQL statement: `ORDER BY`.
+
+- Putting an `order_by` expression into `conditions` would be wrong: you would be filtering rows by a sort key, not ordering them.
+- So sort criteria live in a separate variable: `order_by = [...]`.
+
+Using a **list** for `order_by` (even with one element) is a common habit because:
+
+- You might later add a tie-breaker (e.g. `created_at.desc()` after `upvotes.desc()`).
+- You can pass the same shape to `.order_by(*order_by)` as you do for `where(*conditions)`.
+
+For `filter == "popular"`, `[Question.upvotes.desc()]` means **highest upvotes first**. For other filters, `[Question.created_at.desc()]` means **newest first**.
+
+### Why `base_stmt = base_stmt.where(*conditions)` uses `*`
+
+In Python, `*` **unpacks** a sequence into separate positional arguments.
+
+- `conditions` might be `[expr1, expr2]`.
+- `base_stmt.where(*conditions)` is equivalent to `base_stmt.where(expr1, expr2)`.
+
+SQLAlchemy treats multiple arguments to `where()` as **AND**ed together. Without `*`, you would pass a single list object, which is not a valid SQL expression.
+
+The code guards with `if conditions:` so you never call `where()` with nothing useful when there are no filters.
+
+### The `data_stmt` block (relationship loading, order, pagination)
+
+```python
+data_stmt = (
+    base_stmt
+    .options(
+        selectinload(Question.author),
+        selectinload(Question.tag_questions).selectinload(TagQuestion.tag),
+    )
+    .order_by(*order_by)
+    .offset(skip)
+    .limit(limit)
+)
+```
+
+- **`base_stmt`** is still `select(Question)` plus any `WHERE` from `conditions`. Reusing it keeps **the same filter** for both the count query and the data query.
+
+- **`.options(selectinload(...))`** tells SQLAlchemy how to load related rows so you do not get **N+1 queries** when you access `question.author` or `question.tag_questions` / `tag` in Python.  
+  - `selectinload(Question.author)` runs a second query that loads all authors for the questions in this page in one batch.  
+  - `selectinload(Question.tag_questions).selectinload(TagQuestion.tag)` loads tag link rows, then their `Tag` rows, again in batched queries instead of one query per question.
+
+- **`.order_by(*order_by)`** applies the sort list (popular vs newest) defined earlier. `*` unpacks the list the same way as for `where`.
+
+- **`.offset(skip)`** skips the first `(page - 1) * page_size` rows so page 2 starts after page 1.
+
+- **`.limit(limit)`** returns at most `page_size` rows.
+
+Together, this statement is: **filtered questions, sorted, with relationships eager-loaded, for one page of results**.
+
+---
+
 ## 3) Notes and recommendations
 
 - Keep this logic in the service layer, not in endpoint handlers.
