@@ -1,4 +1,4 @@
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,11 +49,45 @@ class QuestionService:
         return question
 
     @staticmethod
-    async def get_all(db: AsyncSession) -> list[QuestionRead]:
+    async def get_all(db: AsyncSession, page: int = 1, page_size: int = 10, query: str | None = None, filter: str | None = None) -> list[QuestionRead]:
+        skip = (page -1) * page_size
+        limit = page_size
+
+        conditions = []
+
+        #Query search on title/content - case insensitive
+        if query: 
+            q = f"%{query.strip()}%"
+            conditions.append(
+                or_(Question.title.ilike(q), Question.content.ilike(q))
+            )
+
+        if filter == "unanswered":
+            conditions.append(Question.answers == 0)
+
+        # Filter specific sorting
+        if filter == "newest":
+            order_by =[Question.created_at.desc()]
+        elif filter == "popular":
+            order_by = [Question.upvotes.desc()]
+        else:
+            order_by = [Question.created_at.desc()]
         
-        # TODO: need to add pagination and filtering and also get all the associated tags and author for each question
-        stmt = select(Question).options(selectinload(Question.author), selectinload(Question.tag_questions).selectinload(TagQuestion.tag))
-        result = await db.execute(stmt)
+        base_stmt = select(Question)
+        if conditions:
+            base_stmt = base_stmt.where(*conditions)
+
+        # Count for pagination metadata
+        count_stmt = select(func.count()).select_from(base_stmt.subquery())
+        total = (await db.execute(count_stmt)).scalar_one()
+
+        data_stmt = (base_stmt
+            .options(selectinload(Question.author), selectinload(Question.tag_questions).selectinload(TagQuestion.tag))
+            .order_by(*order_by)
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await db.execute(data_stmt)
         questions = result.scalars().all() # gets Question ORM rows from SQLAlchemy result
         return [
             {

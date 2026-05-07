@@ -208,7 +208,34 @@ SQLAlchemy treats multiple arguments to `where()` as **AND**ed together. Without
 
 The code guards with `if conditions:` so you never call `where()` with nothing useful when there are no filters.
 
+### Count query: `count_stmt` and `scalar_one()` (lines 110–111)
+
+```python
+count_stmt = select(func.count()).select_from(base_stmt.subquery())
+total = (await db.execute(count_stmt)).scalar_one()
+```
+
+**What this does**
+
+- `base_stmt` is `SELECT ... FROM questions WHERE ...` (same filters as the list endpoint, but **no** `order_by`, `offset`, or `limit` yet). You need the **total number of matching rows** for pagination metadata (`isNext`, “page X of Y”), not just the rows on the current page.
+
+- `base_stmt.subquery()` turns that statement into a **subquery** (an inline “virtual table” in SQL). Every row in that subquery is one question that passed your filters.
+
+- `select(func.count()).select_from(...)` builds `SELECT count(*) FROM (subquery)`. So you count **only** filtered rows. If you counted from `Question` directly without reusing `base_stmt`, you could accidentally ignore `query` / `unanswered` and get the wrong total.
+
+**Why `()` appears in these lines**
+
+- **`func.count()`** — In SQLAlchemy, `count` is a function object; calling it with **`()`** means “aggregate with no explicit column,” which compiles like counting rows (similar to `COUNT(*)` in SQL). You need the call so the expression is a real aggregate, not the bare function.
+
+- **`(await db.execute(count_stmt))`** — **Parentheses are required for operator precedence.** You want to `await` the coroutine `db.execute(count_stmt)` first, then call `.scalar_one()` on the **Result** object. Without parentheses, Python would parse something like `await db.execute(count_stmt.scalar_one())`, which is wrong. So: await → get result → then `scalar_one()`.
+
+- **`.scalar_one()`** — **`()`** means “call this method.” It returns the **single** scalar value in the first column of the first row (here, the integer count). It also asserts there is exactly one row (and one column), which is what you expect from `SELECT count(...)`. Alternatives like `.scalar()` exist when zero or one row is possible; `scalar_one()` is stricter and fails fast if the query shape is wrong.
+
 ### The `data_stmt` block (relationship loading, order, pagination)
+
+**Why the whole chain is wrapped in `(` `)`**
+
+The opening `(` after `=` starts a **parenthesized expression**. In Python, newlines inside parentheses are ignored, so you can break the method chain across lines without `\` or extra commas. It is only for **readability**; it does not change SQL. The assignment is still one expression: `base_stmt.options(...).order_by(...).offset(...).limit(...)`.
 
 ```python
 data_stmt = (

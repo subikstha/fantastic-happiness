@@ -1,6 +1,6 @@
 
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.question_service import QuestionService
@@ -17,5 +17,11 @@ async def create(payload: QuestionCreate, db: AsyncSession = Depends(get_db), cu
     return await QuestionService.create(payload=payload, db=db, current_user=current_user)
 
 @router.get("/all", response_model=list[QuestionRead])
-async def get_all(db: AsyncSession = Depends(get_db)):
-    return await QuestionService.get_all(db=db)
+async def get_all(
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    query: str | None = Query(None),
+    filter: str | None = Query("newest")
+    ):
+    return await QuestionService.get_all(db=db, page=page, page_size=page_size, query=query, filter=filter)
