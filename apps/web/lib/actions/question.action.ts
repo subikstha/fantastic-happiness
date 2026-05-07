@@ -24,6 +24,7 @@ import {
   PaginatedSearchParamsSchema,
 } from '../validations';
 import { createInteraction } from './interaction.action';
+import { api } from '../api';
 // import User from '@/database/user.model';
 
 export async function createQuestion(
@@ -34,73 +35,26 @@ export async function createQuestion(
     schema: AskQuestionSchema,
     authorize: true, // Only authorized users can make a request
   });
+  console.log('validationResult in createQuestion action', validationResult);
 
   if (validationResult instanceof Error) {
     return handleError(validationResult) as ErrorResponse;
   }
 
   const { title, content, tags } = validationResult.params!;
-  const userId = validationResult.session?.user?.id;
-
-  const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
-    const [question] = await Question.create(
-      [{ title, content, author: userId }],
-      {
-        session,
-      }
+    const response = await api.questions.create(
+      { title, content, tags },
+      validationResult.session?.user?.accessToken
     );
-
-    if (!question) throw new Error('Failed to create question');
-
-    const tagIds: mongoose.Types.ObjectId[] = [];
-    const tagQuestionDocuments = [];
-
-    for (const tag of tags) {
-      const existingTag = await Tag.findOneAndUpdate(
-        {
-          name: { $regex: new RegExp(`^${tag}$`, 'i') }, // The first parameter is the object for the search criteria
-        },
-        { $setOnInsert: { name: tag }, $inc: { questions: 1 } }, // If a tag does not exist then we insert a new tag with setOnInsert and then increment the question count by 1
-        { upsert: true, new: true, session }
-      );
-      tagIds.push(existingTag._id);
-      tagQuestionDocuments.push({
-        tag: existingTag._id,
-        question: question._id,
-      });
+    if ('success' in response) {
+      return response as ErrorResponse;
     }
 
-    await TagQuestion.insertMany(tagQuestionDocuments, { session });
-
-    await Question.findByIdAndUpdate(
-      question._id,
-      { $push: { tags: { $each: tagIds } } },
-      { session }
-    );
-
-    // Log the interaction
-    after(async () => {
-      await createInteraction({
-        action: 'post',
-        actionId: question._id.toString(),
-        authorId: userId as string,
-        actionTarget: 'question',
-      });
-    });
-
-    await session.commitTransaction();
-    return {
-      success: true,
-      data: JSON.parse(JSON.stringify(question)),
-    };
+    return response;
   } catch (error) {
-    await session.abortTransaction();
     return handleError(error) as ErrorResponse;
-  } finally {
-    await session.endSession();
   }
 }
 
@@ -313,66 +267,14 @@ export async function getQuestions(
 
   const { page = 1, pageSize = 10, query, filter } = params;
 
-  const skip = (Number(page) - 1) * pageSize;
-  const limit = Number(pageSize);
-
-  const filterQuery: QueryFilter<typeof Question> = {};
-
-  // TODO: Recommended questions to be done later
-  if (filter === 'recommended') {
-    const session = await auth();
-    const userId = session?.user?.id;
-    if (!userId)
-      return { success: true, data: { questions: [], isNext: false } };
-    const recommendedQuestions = await getRecommendedQuestions({
-      userId,
-      query,
-      skip,
-      limit,
-    });
-    return {
-      success: true,
-      data: recommendedQuestions,
-    };
-  }
-
-  if (query) {
-    filterQuery.$or = [
-      { title: { $regex: new RegExp(query, 'i') } },
-      { content: { $regex: new RegExp(query, 'i') } },
-    ];
-  }
-
-  let sortCriteria = {};
-
-  switch (filter) {
-    case 'newest':
-      sortCriteria = { createdAt: -1 };
-      break;
-    case 'unanswered':
-      filterQuery.answers = 0;
-      sortCriteria = { createdAt: -1 };
-      break;
-    case 'popular':
-      sortCriteria = { upvotes: -1 };
-      break;
-    default:
-      sortCriteria = { createdAt: -1 };
-      break;
-  }
-
   try {
-    const totalQuestions = await Question.countDocuments(filterQuery);
-    // const questions = await Question.find();
-    const questions = await Question.find(filterQuery)
-      .populate('tags', 'name') // Populate the tags field with the name of the tag
-      .populate('author', 'name image') // Populate the author field with the name and image of the author
-      .lean() // Convert Mongoose documents to plain JavaScript objects
-      .sort(sortCriteria)
-      .skip(skip)
-      .limit(limit);
-    // console.log('Questions in server actions are', questions);
-    const isNext = totalQuestions > skip + questions.length;
+    const response = await api.questions.getAll(page, pageSize, query, filter);
+
+    if ('success' in response) {
+      return response as ErrorResponse;
+    }
+
+    const { questions, isNext } = response;
 
     return {
       success: true,

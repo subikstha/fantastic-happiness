@@ -46,8 +46,30 @@ class QuestionService:
 
         await db.commit()
         await db.refresh(question)
-        return question
 
+        stmt = (
+            select(Question)
+            .where(Question.id == question.id)
+            .options(
+                selectinload(Question.author),
+                selectinload(Question.tag_questions).selectinload(TagQuestion.tag)
+            )
+        )
+        created = (await db.execute(stmt)).scalar_one()
+        return  {
+                "id": created.id,
+                "title": created.title,
+                "content": created.content,
+                "author": created.author,
+                "tags": [tq.tag for tq in created.tag_questions],
+                "created_at": created.created_at,
+                "answers": created.answers,
+                "views": created.views,
+                "upvotes": created.upvotes,
+                "downvotes": created.downvotes,
+            }
+           
+           
     @staticmethod
     async def get_all(db: AsyncSession, page: int = 1, page_size: int = 10, query: str | None = None, filter: str | None = None) -> QuestionRead:
         skip = (page -1) * page_size

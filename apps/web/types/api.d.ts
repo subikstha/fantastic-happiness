@@ -13,3 +13,8 @@ type FastApiAuthResponse = {
     username?: string | null;
   };
 };
+
+type GetQuestionsResponse = {
+  questions: Question[];
+  isNext: boolean;
+};

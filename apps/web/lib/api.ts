@@ -12,6 +12,30 @@ const JOBS_API_URL = process.env.JOB_SEARCH_API_URL;
 const COUNTRIES_API_URL = process.env.COUNTRIES_API_URL;
 const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL;
 
+type ApiClientOptions = {
+  accessToken?: string;
+};
+
+function createFastApiClient({ accessToken }: ApiClientOptions) {
+  const authHeaders: HeadersInit = accessToken
+    ? { Authorization: `Bearer ${accessToken}` }
+    : {};
+
+  return {
+    post: <T>(path: string, body?: unknown) =>
+      fetchHandler<T>(`${FASTAPI_BASE_URL}${path}`, {
+        method: 'POST',
+        body: body ? JSON.stringify(body) : undefined,
+        headers: authHeaders,
+      }),
+    get: <T>(path: string) =>
+      fetchHandler<T>(`${FASTAPI_BASE_URL}${path}`, {
+        method: 'GET',
+        headers: authHeaders,
+      }),
+  };
+}
+
 export const api = {
   auth: {
     oAuthSignIn: ({
@@ -58,6 +82,54 @@ export const api = {
           method: 'POST',
           raw: true,
           body: JSON.stringify({ email, password }),
+        }
+      );
+
+      if ('success' in response) {
+        return response as ErrorResponse;
+      }
+
+      return {
+        success: true,
+        data: response,
+        status: 200,
+      };
+    },
+  },
+  questions: {
+    create: async (
+      question: {
+        title: string;
+        content: string;
+        tags: string[];
+      },
+      accessToken?: string
+    ): Promise<ActionResponse<Question>> => {
+      const fastApiClient = createFastApiClient({ accessToken });
+      const response = await fastApiClient.post<Question | ErrorResponse>(
+        `/questions/create`,
+        question
+      );
+      if ('success' in response) {
+        return response as ErrorResponse;
+      }
+
+      return {
+        success: true,
+        data: response,
+        status: 200,
+      };
+    },
+    getAll: async (
+      page: number,
+      pageSize: number,
+      query: string | null = '',
+      filter: string | null = ''
+    ): Promise<ActionResponse<GetQuestionsResponse>> => {
+      const response = await fetchHandler<GetQuestionsResponse | ErrorResponse>(
+        `${FASTAPI_BASE_URL}/questions/all?page=${page}&page_size=${pageSize}&query=${query}&filter=${filter}`,
+        {
+          method: 'GET',
         }
       );
 
