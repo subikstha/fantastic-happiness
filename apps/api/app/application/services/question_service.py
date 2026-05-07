@@ -49,7 +49,7 @@ class QuestionService:
         return question
 
     @staticmethod
-    async def get_all(db: AsyncSession, page: int = 1, page_size: int = 10, query: str | None = None, filter: str | None = None) -> list[QuestionRead]:
+    async def get_all(db: AsyncSession, page: int = 1, page_size: int = 10, query: str | None = None, filter: str | None = None) -> QuestionRead:
         skip = (page -1) * page_size
         limit = page_size
 
@@ -89,7 +89,8 @@ class QuestionService:
         )
         result = await db.execute(data_stmt)
         questions = result.scalars().all() # gets Question ORM rows from SQLAlchemy result
-        return [
+
+        items = [
             {
                 "id": q.id,
                 "title": q.title,
@@ -104,3 +105,7 @@ class QuestionService:
             }
             for q in questions # iterates each Question and build a new QuestionRead object for each
         ]
+        return {
+            "questions": items,
+            "isNext": total > (skip + len(items))
+        }

@@ -23,7 +23,7 @@ class QuestionTagRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class QuestionRead(BaseModel):
+class QuestionReadItem(BaseModel):
     id: UUID = Field(serialization_alias="_id")
     title: str
     content: str
@@ -36,3 +36,7 @@ class QuestionRead(BaseModel):
     views: int
 
     model_config = {"from_attributes": True}
+
+class QuestionRead(BaseModel):
+    questions: list[QuestionReadItem]
+    isNext: bool

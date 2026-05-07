@@ -16,7 +16,7 @@ router = APIRouter(prefix="/questions", tags=["questions"])
 async def create(payload: QuestionCreate, db: AsyncSession = Depends(get_db), current_user: User =Depends(get_current_user)):
     return await QuestionService.create(payload=payload, db=db, current_user=current_user)
 
-@router.get("/all", response_model=list[QuestionRead])
+@router.get("/all", response_model=QuestionRead)
 async def get_all(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
