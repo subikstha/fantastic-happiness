@@ -18,3 +18,13 @@ type GetQuestionsResponse = {
   questions: Question[];
   isNext: boolean;
 };
+
+type CreateAnswerResponse = {
+  _id: string;
+  author: string;
+  question: string;
+  content: string;
+  upvotes: number;
+  downvotes: number;
+  createdAt: Date;
+};

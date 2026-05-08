@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from uuid import UUID
 from datetime import datetime
 
@@ -9,9 +9,9 @@ class AnswerCreate(BaseModel):
     model_config = {"from_attributes": True}
 
 class AnswerReadItem(BaseModel):
-    id: UUID
-    author_id: UUID
-    question_id: UUID
+    id: UUID = Field(serialization_alias="_id")
+    author_id: UUID = Field(serialization_alias="author")
+    question_id: UUID = Field(serialization_alias="question")
     content: str
     upvotes: int
     downvotes: int

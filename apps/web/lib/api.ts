@@ -177,6 +177,26 @@ export const api = {
       };
     },
   },
+  answers: {
+    create: async (
+      answer: { questionId: string; content: string },
+      accessToken?: string
+    ): Promise<ActionResponse<CreateAnswerResponse>> => {
+      const fastApiClient = createFastApiClient({ accessToken });
+      const response = await fastApiClient.post<
+        CreateAnswerResponse | ErrorResponse
+      >(`/answers/create`, answer);
+      if ('success' in response) {
+        return response as ErrorResponse;
+      }
+
+      return {
+        success: true,
+        data: response,
+        status: 200,
+      };
+    },
+  },
   users: {
     getAll: () => fetchHandler(`${API_BASE_URL}/users`),
     getById: (id: string) => fetchHandler(`${API_BASE_URL}/users/${id}`),

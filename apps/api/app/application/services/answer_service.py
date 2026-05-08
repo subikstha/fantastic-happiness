@@ -18,9 +18,9 @@ class AnswerService:
             question_id=payload.question_id,
             author_id=current_user.id
         )
-        db.add(answer)
-        db.commit()
-        db.refresh(answer)
+        db.add(answer) # Tells SQLAlchemy to track this object and prepare it to be inserted into the db
+        db.commit() # This sends the SQL query to the DB and permanently saves the transaction
+        db.refresh(answer) # After commiting, this reloads the object from the DB and updates the python object with new DB state
 
         return {
             "id": answer.id,

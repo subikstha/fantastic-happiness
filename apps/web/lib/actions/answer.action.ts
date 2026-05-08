@@ -17,6 +17,7 @@ import {
   GetAnswersSchema,
 } from '../validations';
 import { createInteraction } from './interaction.action';
+import { api } from '../api';
 
 export async function createAnswer(
   params: CreateAnswerParams
@@ -34,47 +35,57 @@ export async function createAnswer(
   const { content, questionId } = validationResult.params!;
 
   const userId = validationResult?.session?.user?.id;
+  const accessToken = validationResult?.session?.user?.accessToken;
 
   //   Starting a mongoose session for atomic action
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const question = await Question.findById(questionId);
-    if (!question) throw new Error('Question not found');
+    //
+    // const question = await Question.findById(questionId);
+    // if (!question) throw new Error('Question not found');
 
-    // We destructure the response [answer]. If we wanna track this transaction with a session, we need to pass an array as the first param
-    // even if it is just a single document and the second parameter is a session so that we can stop if something goes wrong
-    const [newAnswer] = await Answer.create(
-      [
-        {
-          author: userId,
-          question: questionId,
-          content,
-        },
-      ],
-      { session }
+    // // We destructure the response [answer]. If we wanna track this transaction with a session, we need to pass an array as the first param
+    // // even if it is just a single document and the second parameter is a session so that we can stop if something goes wrong
+    // const [newAnswer] = await Answer.create(
+    //   [
+    //     {
+    //       author: userId,
+    //       question: questionId,
+    //       content,
+    //     },
+    //   ],
+    //   { session }
+    // );
+
+    // if (!newAnswer) throw new Error('Failed to create answer');
+
+    // question.answers += 1;
+    // await question.save({ session });
+
+    // after(async () => {
+    //   await createInteraction({
+    //     action: 'post',
+    //     actionId: newAnswer._id.toString(),
+    //     authorId: userId as string,
+    //     actionTarget: 'answer',
+    //   });
+    // });
+
+    // await session.commitTransaction();
+
+    // revalidatePath(ROUTES.QUESTION(questionId));
+    const response = await api.answers.create(
+      { questionId, content },
+      accessToken
     );
 
-    if (!newAnswer) throw new Error('Failed to create answer');
+    if ('success' in response) {
+      return response as ErrorResponse;
+    }
 
-    question.answers += 1;
-    await question.save({ session });
-
-    after(async () => {
-      await createInteraction({
-        action: 'post',
-        actionId: newAnswer._id.toString(),
-        authorId: userId as string,
-        actionTarget: 'answer',
-      });
-    });
-
-    await session.commitTransaction();
-
-    revalidatePath(ROUTES.QUESTION(questionId));
-
-    return { success: true, data: JSON.parse(JSON.stringify(newAnswer)) };
+    return response;
   } catch (error) {
     await session.abortTransaction();
     return handleError(error) as ErrorResponse;
