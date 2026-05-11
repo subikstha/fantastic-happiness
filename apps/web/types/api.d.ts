@@ -21,7 +21,7 @@ type GetQuestionsResponse = {
 
 type CreateAnswerResponse = {
   _id: string;
-  author: string;
+  author: { id: string; name: string; image?: string | null };
   question: string;
   content: string;
   upvotes: number;
