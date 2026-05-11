@@ -19,6 +19,12 @@ type GetQuestionsResponse = {
   isNext: boolean;
 };
 
+type GetAnswersResponse = {
+  answers: Answer[];
+  isNext: boolean;
+  totalAnswers: number;
+};
+
 type CreateAnswerResponse = {
   _id: string;
   author: { id: string; name: string; image?: string | null };

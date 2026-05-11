@@ -2,6 +2,8 @@
 
 This document captures future AI/NLP capabilities for the Stack Overflow clone, with a practical rollout path for the current Next.js + FastAPI + PostgreSQL architecture.
 
+**See also:** a shorter prioritized backlog (heuristics, Ollama, tiers) is in [`docs/upcoming-features-ai-quality.md`](upcoming-features-ai-quality.md). Direct messaging and in-app notifications (separate product area) are in [`docs/upcoming-features-messaging-notifications.md`](upcoming-features-messaging-notifications.md).
+
 ## Product Goals
 
 - Improve question quality before publishing.

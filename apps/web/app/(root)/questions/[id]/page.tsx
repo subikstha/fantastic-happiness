@@ -12,12 +12,48 @@ import SaveQuestion from '@/components/questions/SaveQuestion';
 import UserAvatar from '@/components/UserAvatar';
 import Votes from '@/components/votes/Votes';
 import ROUTES from '@/constants/routes';
-import { getAnswers } from '@/lib/actions/answer.action';
 import { hasSavedQuestion } from '@/lib/actions/collection.action';
-import { getQuestion, incrementViews } from '@/lib/actions/question.action';
 import { hasVoted } from '@/lib/actions/vote.action';
 import { formatNumber, getTimeStamp } from '@/lib/utils';
 import { api } from '@/lib/api';
+
+/** Maps FastAPI answer list payloads to the shape `AnswerCard` expects (`_id`, `author._id`, etc.). */
+function mapFastApiAnswersForUi(answers: Answer[] | undefined): Answer[] | undefined {
+  if (answers === undefined) return undefined;
+  return answers.map((a) => {
+    const row = a as unknown as {
+      _id?: string;
+      id?: string;
+      content: string;
+      question?: string;
+      question_id?: string;
+      upvotes: number;
+      downvotes: number;
+      createdAt?: string | Date;
+      created_at?: string | Date;
+      author: {
+        _id?: string;
+        id?: string;
+        name: string;
+        image?: string | null;
+      };
+    };
+    const rawDate = row.createdAt ?? row.created_at;
+    return {
+      _id: row._id ?? row.id ?? '',
+      content: row.content,
+      author: {
+        _id: row.author._id ?? row.author.id ?? '',
+        name: row.author.name,
+        image: row.author.image ?? '',
+      },
+      question: row.question ?? row.question_id ?? '',
+      createdAt: rawDate instanceof Date ? rawDate : new Date(String(rawDate)),
+      upvotes: row.upvotes,
+      downvotes: row.downvotes,
+    };
+  });
+}
 
 export async function generateMetadata({
   params,
@@ -60,12 +96,12 @@ const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
     success: areAnswersLoaded,
     data: answerResult,
     error: answersError,
-  } = await getAnswers({
-    questionId: id,
-    page: Number(page) || 1,
-    pageSize: Number(pageSize) || 10,
-    filter,
-  });
+  } = await api.answers.getAll(
+    id,
+    Number(page) || 1,
+    Number(pageSize) || 10,
+    typeof filter === 'string' ? filter : null
+  );
 
   const hasVotedPromise = hasVoted({
     targetId: question._id,
@@ -156,7 +192,7 @@ const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
         <AllAnswers
           page={Number(page) || 1}
           isNext={answerResult?.isNext || false}
-          data={answerResult?.answers}
+          data={mapFastApiAnswersForUi(answerResult?.answers)}
           success={areAnswersLoaded}
           error={answersError}
           totalAnswers={answerResult?.totalAnswers || 0}

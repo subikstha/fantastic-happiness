@@ -185,14 +185,49 @@ export const api = {
       const fastApiClient = createFastApiClient({ accessToken });
       const response = await fastApiClient.post<
         CreateAnswerResponse | ErrorResponse
-      >(`/answers/create`, answer);
-      if ('success' in response) {
+      >(`/answers`, {
+        question_id: answer.questionId,
+        content: answer.content,
+      });
+      if ('success' in response && response.success === false) {
         return response as ErrorResponse;
       }
 
       return {
         success: true,
-        data: response,
+        data: response as CreateAnswerResponse,
+        status: 200,
+      };
+    },
+    getAll: async (
+      questionId: string,
+      page: number = 1,
+      pageSize: number = 10,
+      filter: string | null = null
+    ): Promise<ActionResponse<GetAnswersResponse>> => {
+      const params = new URLSearchParams({
+        question_id: questionId,
+        page: String(page),
+        page_size: String(pageSize),
+      });
+      if (filter !== null && filter !== '') {
+        params.set('filter', filter);
+      }
+
+      const response = await fetchHandler<GetAnswersResponse | ErrorResponse>(
+        `${FASTAPI_BASE_URL}/answers/all?${params.toString()}`,
+        {
+          method: 'GET',
+        }
+      );
+
+      if ('success' in response && response.success === false) {
+        return response as ErrorResponse;
+      }
+
+      return {
+        success: true,
+        data: response as GetAnswersResponse,
         status: 200,
       };
     },

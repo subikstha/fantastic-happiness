@@ -17,10 +17,24 @@ StackOverflow clone using Next.js + FastAPI
 ## Current Progress
 - User model implemented
 - Alembic configured
+- **Questions (FastAPI):** list (`GET /questions/all`), create (`POST /questions/create`), detail (`GET /questions/{id}`), increment views — see `apps/api/app/application/services/question_service.py` and `apps/api/app/api/v1/endpoints/question.py`.
+- **Answers (FastAPI):** create (`POST /api/v1/answers`) with JWT; list by question (`GET /api/v1/answers/all?question_id=...`) with pagination and filters (`latest` / `oldest` / `popular`, aligned with Next `getAnswers`); `AnswerService` increments denormalized `questions.answers` on create; tests under `app/tests/test_answer_service.py` and `test_answer_endpoint.py`. Devlog: `docs/devlog-answers-api-parity.md`.
 
 ## Next Tasks
-1. **Post questions (logged-in users):** end-to-end flow so an authenticated user can create a question against FastAPI (protected `POST` with JWT, Next.js ask-question UI + server action or client wiring, env `FASTAPI_BASE_URL`, migration for `questions` / tags if not applied). Verify list/detail pages can show the new post or document follow-up if reads still use Mongo.
-2. Domain after that: question listing/detail from FastAPI, answers, votes, tags.
+1. **Wire Next.js to FastAPI for answers:** add `api.answers.getAll` (or equivalent) in `apps/web/lib/api.ts` calling `GET .../answers/all`; switch `getAnswers` in `apps/web/lib/actions/answer.action.ts` off Mongoose to the FastAPI response shape; align `answers.create` URL (`/answers`) and JSON body (`question_id` vs `questionId`) with the API contract.
+2. **Read paths / single source of truth:** ensure question list/detail UIs use FastAPI where Postgres is authoritative; retire or gate parallel Mongo reads per screen to avoid split-brain IDs (UUID vs ObjectId).
+3. **Domain after answers read path:** answer delete in FastAPI (decrement `questions.answers`), votes, tags — same Router → Service → DB pattern.
+
+## Upcoming features (backlog — not scheduled)
+
+AI, quality, and discovery ideas (rule-based checks, **Ollama/local LLM**, duplicates, tags, moderation, semantic search) are captured here:
+
+- [`docs/upcoming-features-ai-quality.md`](upcoming-features-ai-quality.md) — compact tiered backlog.
+- [`docs/ai-nlp-future-integrations.md`](ai-nlp-future-integrations.md) — longer product goals and rollout notes.
+
+**Direct messaging and in-app notifications** (data model, REST → SSE → WebSockets rollout, API sketch, safety):
+
+- [`docs/upcoming-features-messaging-notifications.md`](upcoming-features-messaging-notifications.md)
 
 ## Authentication — deferred (do later)
 
@@ -59,6 +73,8 @@ StackOverflow clone using Next.js + FastAPI
   - Alembic migration added for `refresh_tokens` table
   - refresh token create/rotate/revoke service added
 - Multiple migration/devlog docs added under `docs/`.
+- **Questions (FastAPI):** `GET /questions/all`, `POST /questions/create`, `GET /questions/{question_id}`, `POST /questions/{question_id}/increment-views` — SQLAlchemy + Pydantic; see `question_service.py` / `endpoints/question.py`.
+- **Answers (FastAPI):** `POST /answers` (JWT), `GET /answers/all` with `question_id`, `page`, `page_size`, `filter`; `AnswerService.get_answers` matches Next `getAnswers` sort rules; `create` increments `questions.answers` and 404s if the question row is missing (avoids silent empty lists when the wrong store or wrong UUID is used — see `docs/devlog-answers-api-parity.md`).
 
 ## Key fixes that were made
 
@@ -139,6 +155,7 @@ uv run pytest -q
   - `app/tests/test_users.py`
   - `app/tests/test_accounts.py`
 - `app/tests/test_auth.py`
+- `app/tests/test_answer_service.py`, `app/tests/test_answer_endpoint.py` (answers list/create parity and HTTP smoke for `GET /answers/all`).
 - Test collection from `apps/api` works.
 - Full execution depends on test DB availability (`devflow_test` / `TEST_DATABASE_URL`).
 - Auth tests added and passing:
@@ -147,7 +164,7 @@ uv run pytest -q
   - `/auth/me` unauthorized + authorized flows
   - refresh success + rotation
   - refresh replay + expired token handling
-- Latest full suite run: `12 passed`.
+- Latest full suite run (when DB available): previously `12 passed`; additional answer tests require Postgres (`TEST_DATABASE_URL`).
 
 ## Important docs created
 
@@ -161,12 +178,16 @@ uv run pytest -q
 - `docs/authentication-migration-plan.md`
 - `docs/nextauth-web-auth-flow.md` (NextAuth ↔ FastAPI credentials)
 - `docs/oauth/oauth-route.md`, `docs/oauth/session-middleware-requirement.md` (for when OAuth work resumes)
+- `docs/devlog-answers-api-parity.md` (answers API, empty-list causes, verification)
+- `docs/upcoming-features-ai-quality.md` (AI / quality backlog — not implemented)
+- `docs/upcoming-features-messaging-notifications.md` (DMs + in-app notifications backlog — not implemented)
+- `docs/ai-nlp-future-integrations.md` (AI/NLP goals and rollout — reference)
 
 ## Recommended immediate next steps
 
-1. **Logged-in user can post a question** (see **Next Tasks** at top): FastAPI `POST /api/v1/questions` with Bearer token, Next.js ask flow, DB migration, and basic verification (session carries `accessToken`; `FASTAPI_BASE_URL` includes `/api/v1`).
-2. **Read path for questions:** `GET` list/detail from FastAPI so new posts appear without depending on Mongo for that slice.
-3. Further domain: answers, votes, tags — migrate or retire parallel Mongo usage per feature.
+1. **Answers from the web app:** implement **Next Tasks** item 1 — FastAPI-backed `getAnswers` + aligned `answers.create` client so the UI reads the same Postgres rows Swagger tests against.
+2. **Questions read path in Next:** confirm ask-question and home/detail flows use FastAPI list/detail where intended; document any screens still on Mongo until migrated.
+3. **Follow-on API:** answer delete + counter decrement, votes, tags (see **Next Tasks** item 3).
 
 Auth polish and OAuth are listed under **Authentication — deferred (do later)** above.
 #Docker command to enter interactive psql mode
